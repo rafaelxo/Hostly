@@ -7,7 +7,6 @@ import {
 } from "./hooks/useData";
 import type { Imovel, Anfitriao, Reserva } from "./services/api";
 
-// ── Icons ────────────────────────────────────────────────────────────────────
 const IconHome = () => (
   <svg
     width="20"
@@ -176,10 +175,8 @@ const IconTrash = () => (
   </svg>
 );
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type PageId = "dashboard" | "imoveis" | "anfitrioes" | "reservas";
 
-// ── Shared UI ─────────────────────────────────────────────────────────────────
 const Spinner = () => (
   <div className="flex items-center justify-center py-16">
     <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin"></div>
@@ -200,7 +197,6 @@ const Badge = ({ active }: { active: boolean }) => (
   </span>
 );
 
-// ── Dashboard Page ────────────────────────────────────────────────────────────
 const PageDashboard = () => {
   const { data: stats, loading, error } = useDashboard();
   const { data: imoveis } = useImoveis();
@@ -312,9 +308,8 @@ const PageDashboard = () => {
   );
 };
 
-// ── Imóveis Page ──────────────────────────────────────────────────────────────
 const PageImoveis = () => {
-  const { data: imoveis, loading, error, refetch } = useImoveis();
+  const { data: imoveis, loading, error } = useImoveis();
   const [search, setSearch] = useState("");
 
   const filtered =
@@ -423,7 +418,6 @@ const PageImoveis = () => {
   );
 };
 
-// ── Anfitriões Page ───────────────────────────────────────────────────────────
 const PageAnfitrioes = () => {
   const { data: anfitrioes, loading, error } = useAnfitrioes();
 
@@ -466,7 +460,6 @@ const PageAnfitrioes = () => {
   );
 };
 
-// ── Reservas Page ─────────────────────────────────────────────────────────────
 const PageReservas = () => {
   const { data: reservas, loading, error } = useReservas();
 
@@ -534,7 +527,6 @@ const PageReservas = () => {
   );
 };
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
 const NAV = [
   { id: "dashboard" as PageId, label: "Dashboard", icon: <IconHome /> },
   { id: "imoveis" as PageId, label: "Imóveis", icon: <IconBuilding /> },
@@ -626,7 +618,6 @@ const Sidebar = ({
   </aside>
 );
 
-// ── Header ────────────────────────────────────────────────────────────────────
 const PAGE_META: Record<PageId, { title: string; cta: string }> = {
   dashboard: { title: "Dashboard", cta: "" },
   imoveis: { title: "Imóveis", cta: "Novo Imóvel" },
@@ -672,7 +663,6 @@ const Header = ({
   );
 };
 
-// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState<PageId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
