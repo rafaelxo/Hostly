@@ -14,6 +14,7 @@ func NewUserFileRepository(path string) (useruc.Repository, error) {
 		path,
 		func(u domain.User) int { return u.ID },
 		func(u *domain.User, id int) { u.ID = id },
+		userPayloadCodec(),
 	)
 	if err != nil {
 		return nil, err

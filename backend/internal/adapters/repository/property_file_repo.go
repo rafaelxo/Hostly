@@ -14,6 +14,7 @@ func NewPropertyFileRepository(path string) (property.Repository, error) {
 		path,
 		func(p domain.Property) int { return p.ID },
 		func(p *domain.Property, id int) { p.ID = id },
+		propertyPayloadCodec(),
 	)
 	if err != nil {
 		return nil, err

@@ -14,6 +14,7 @@ func NewReservationFileRepository(path string) (reservationuc.Repository, error)
 		path,
 		func(r domain.Reservation) int { return r.ID },
 		func(r *domain.Reservation, id int) { r.ID = id },
+		reservationPayloadCodec(),
 	)
 	if err != nil {
 		return nil, err

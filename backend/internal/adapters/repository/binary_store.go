@@ -1,10 +1,7 @@
 package repository
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/gob"
-	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,18 +25,30 @@ type recordMeta struct {
 	Size   uint32
 }
 
+type payloadCodec[T any] struct {
+	encode func(T) ([]byte, error)
+	decode func([]byte) (T, error)
+}
+
 type binaryEntityStore[T any] struct {
 	path  string
 	getID func(T) int
 	setID func(*T, int)
+	codec payloadCodec[T]
 	mu    sync.Mutex
 }
 
-func newBinaryEntityStore[T any](path string, getID func(T) int, setID func(*T, int)) (*binaryEntityStore[T], error) {
+func newBinaryEntityStore[T any](
+	path string,
+	getID func(T) int,
+	setID func(*T, int),
+	codec payloadCodec[T],
+) (*binaryEntityStore[T], error) {
 	store := &binaryEntityStore[T]{
 		path:  path,
 		getID: getID,
 		setID: setID,
+		codec: codec,
 	}
 	if err := store.ensureFile(); err != nil {
 		return nil, err
@@ -67,8 +76,7 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 		return nil
 	}
 
-	header := fileHeader{}
-	return writeHeader(file, header)
+	return writeHeader(file, fileHeader{})
 }
 
 func (s *binaryEntityStore[T]) Create(item T) (T, error) {
@@ -91,7 +99,7 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 	header.LastID++
 	s.setID(&item, int(header.LastID))
 
-	payload, err := encodePayload(item)
+	payload, err := s.codec.encode(item)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -122,13 +130,12 @@ func (s *binaryEntityStore[T]) GetByID(id int) (T, error) {
 	}
 	defer file.Close()
 
-	_, err = readHeader(file)
-	if err != nil {
+	if _, err = readHeader(file); err != nil {
 		var zero T
 		return zero, err
 	}
 
-	items, err := scanActiveRecords[T](file)
+	items, err := scanActiveRecords(file, s.codec)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -154,12 +161,11 @@ func (s *binaryEntityStore[T]) GetAll() ([]T, error) {
 	}
 	defer file.Close()
 
-	_, err = readHeader(file)
-	if err != nil {
+	if _, err = readHeader(file); err != nil {
 		return nil, err
 	}
 
-	return scanActiveRecords[T](file)
+	return scanActiveRecords(file, s.codec)
 }
 
 func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
@@ -179,7 +185,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		return zero, err
 	}
 
-	meta, _, err := findRecordByID(file, id, s.getID)
+	meta, _, err := findRecordByID(file, id, s.getID, s.codec)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -191,7 +197,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 	}
 
 	s.setID(&item, id)
-	payload, err := encodePayload(item)
+	payload, err := s.codec.encode(item)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -224,7 +230,7 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 		return err
 	}
 
-	meta, _, err := findRecordByID(file, id, s.getID)
+	meta, _, err := findRecordByID(file, id, s.getID, s.codec)
 	if err != nil {
 		return err
 	}
@@ -301,20 +307,15 @@ func markDeletedAt(file *os.File, offset int64) error {
 	return err
 }
 
-func scanActiveRecords[T any](file *os.File) ([]T, error) {
+func scanActiveRecords[T any](file *os.File, codec payloadCodec[T]) ([]T, error) {
 	if _, err := file.Seek(fileHeaderSize, io.SeekStart); err != nil {
 		return nil, err
 	}
 
-	items := []T{}
+	items := make([]T, 0)
 	for {
-		recordOffset, err := file.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-
 		headerBuf := make([]byte, recordMetaSize)
-		_, err = io.ReadFull(file, headerBuf)
+		_, err := io.ReadFull(file, headerBuf)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			break
 		}
@@ -322,7 +323,6 @@ func scanActiveRecords[T any](file *os.File) ([]T, error) {
 			return nil, err
 		}
 
-		_ = recordOffset
 		deleted := headerBuf[0] == 1
 		size := binary.LittleEndian.Uint32(headerBuf[1:5])
 
@@ -335,7 +335,7 @@ func scanActiveRecords[T any](file *os.File) ([]T, error) {
 			continue
 		}
 
-		item, err := decodePayload[T](payload)
+		item, err := codec.decode(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -345,7 +345,12 @@ func scanActiveRecords[T any](file *os.File) ([]T, error) {
 	return items, nil
 }
 
-func findRecordByID[T any](file *os.File, id int, getID func(T) int) (recordMeta, T, error) {
+func findRecordByID[T any](
+	file *os.File,
+	id int,
+	getID func(T) int,
+	codec payloadCodec[T],
+) (recordMeta, T, error) {
 	if _, err := file.Seek(fileHeaderSize, io.SeekStart); err != nil {
 		var zero T
 		return recordMeta{}, zero, err
@@ -382,7 +387,7 @@ func findRecordByID[T any](file *os.File, id int, getID func(T) int) (recordMeta
 			continue
 		}
 
-		item, err := decodePayload[T](payload)
+		item, err := codec.decode(payload)
 		if err != nil {
 			var zero T
 			return recordMeta{}, zero, err
@@ -392,27 +397,4 @@ func findRecordByID[T any](file *os.File, id int, getID func(T) int) (recordMeta
 			return recordMeta{Offset: offset, Size: size}, item, nil
 		}
 	}
-}
-
-func encodePayload[T any](item T) ([]byte, error) {
-	var buffer bytes.Buffer
-	if err := gob.NewEncoder(&buffer).Encode(item); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
-}
-
-func decodePayload[T any](payload []byte) (T, error) {
-	var item T
-
-	if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(&item); err == nil {
-		return item, nil
-	}
-
-	if err := json.Unmarshal(payload, &item); err != nil {
-		var zero T
-		return zero, err
-	}
-
-	return item, nil
 }
