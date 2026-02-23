@@ -46,3 +46,11 @@ func (r *ReservationFileRepository) GetByPropertyID(propertyID int) ([]domain.Re
 	}
 	return items, nil
 }
+
+func (r *ReservationFileRepository) Update(id int, item domain.Reservation) (domain.Reservation, error) {
+	return r.store.Update(id, item)
+}
+
+func (r *ReservationFileRepository) Delete(id int) error {
+	return r.store.Delete(id)
+}

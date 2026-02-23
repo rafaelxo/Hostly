@@ -253,6 +253,26 @@ export const reservaService = {
       body: JSON.stringify(data),
     });
   },
+  async update(id: number, data: Partial<Reserva>): Promise<Reserva> {
+    if (USE_MOCK) {
+      await delay(300);
+      return {
+        ...MOCK_RESERVAS.find((r) => r.idReserva === id)!,
+        ...data,
+      } as Reserva;
+    }
+    return request<Reserva>(`/reservas/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  async delete(id: number): Promise<void> {
+    if (USE_MOCK) {
+      await delay(200);
+      return;
+    }
+    return request<void>(`/reservas/${id}`, { method: "DELETE" });
+  },
 };
 
 export const dashboardService = {

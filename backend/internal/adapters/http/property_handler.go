@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"backend/internal/domain"
+	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
-	"backend/internal/usecase/property"
 )
 
 type Dependencies struct {
@@ -288,24 +288,64 @@ func (h *Handler) HandleReservations(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleReservationByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	id, err := readID(r.URL.Path, "/reservas/")
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	item, err := h.reservationService.GetByID(id)
-	if err != nil {
-		respondDomainError(w, err)
-		return
-	}
+	switch r.Method {
+	case http.MethodGet:
+		item, err := h.reservationService.GetByID(id)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, item)
+	case http.MethodPut:
+		existing, err := h.reservationService.GetByID(id)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
 
-	respondJSON(w, http.StatusOK, item)
+		var payload domain.Reservation
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		if payload.PropertyID != 0 {
+			existing.PropertyID = payload.PropertyID
+		}
+		if payload.GuestName != "" {
+			existing.GuestName = payload.GuestName
+		}
+		if payload.StartDate != "" {
+			existing.StartDate = payload.StartDate
+		}
+		if payload.EndDate != "" {
+			existing.EndDate = payload.EndDate
+		}
+		if payload.TotalValue != 0 {
+			existing.TotalValue = payload.TotalValue
+		}
+
+		updated, err := h.reservationService.Update(id, existing)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := h.reservationService.Delete(id); err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }
 
 func (h *Handler) HandleDashboardStats(w http.ResponseWriter, r *http.Request) {
@@ -373,4 +413,3 @@ func readID(path string, prefix string) (int, error) {
 	part = strings.Trim(part, "/")
 	return strconv.Atoi(part)
 }
-
