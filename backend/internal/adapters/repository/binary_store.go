@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/json"
 	"io"
 	"os"
@@ -89,7 +91,7 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 	header.LastID++
 	s.setID(&item, int(header.LastID))
 
-	payload, err := json.Marshal(item)
+	payload, err := encodePayload(item)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -189,7 +191,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 	}
 
 	s.setID(&item, id)
-	payload, err := json.Marshal(item)
+	payload, err := encodePayload(item)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -333,8 +335,8 @@ func scanActiveRecords[T any](file *os.File) ([]T, error) {
 			continue
 		}
 
-		var item T
-		if err := json.Unmarshal(payload, &item); err != nil {
+		item, err := decodePayload[T](payload)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -380,8 +382,8 @@ func findRecordByID[T any](file *os.File, id int, getID func(T) int) (recordMeta
 			continue
 		}
 
-		var item T
-		if err := json.Unmarshal(payload, &item); err != nil {
+		item, err := decodePayload[T](payload)
+		if err != nil {
 			var zero T
 			return recordMeta{}, zero, err
 		}
@@ -390,4 +392,27 @@ func findRecordByID[T any](file *os.File, id int, getID func(T) int) (recordMeta
 			return recordMeta{Offset: offset, Size: size}, item, nil
 		}
 	}
+}
+
+func encodePayload[T any](item T) ([]byte, error) {
+	var buffer bytes.Buffer
+	if err := gob.NewEncoder(&buffer).Encode(item); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func decodePayload[T any](payload []byte) (T, error) {
+	var item T
+
+	if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(&item); err == nil {
+		return item, nil
+	}
+
+	if err := json.Unmarshal(payload, &item); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	return item, nil
 }
