@@ -165,14 +165,24 @@ export function AnfitrioesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={startNew}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-        >
-          <IconPlus /> Novo Anfitrião
-        </button>
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">
+              Anfitriões
+            </h3>
+            <p className="text-xs text-stone-400">
+              {(anfitrioes ?? []).length} perfil(is) ativo(s)
+            </p>
+          </div>
+          <button
+            onClick={startNew}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+          >
+            <IconPlus /> Novo Anfitrião
+          </button>
+        </div>
       </div>
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}

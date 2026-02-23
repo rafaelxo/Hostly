@@ -226,26 +226,36 @@ export function ImoveisPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-4 py-2.5 shadow-sm">
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">Imóveis</h3>
+            <p className="text-xs text-stone-400">
+              {filtered.length} resultado(s) na listagem
+            </p>
+          </div>
+          <button
+            onClick={startNew}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm whitespace-nowrap"
+          >
+            <IconPlus /> Novo Imóvel
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5">
           <span className="text-stone-400">
             <IconSearch />
           </span>
           <input
-            className="flex-1 text-sm text-stone-600 placeholder-stone-400 outline-none"
+            className="flex-1 bg-transparent text-sm text-stone-600 placeholder-stone-400 outline-none"
             placeholder="Buscar por título ou cidade..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <button
-          onClick={startNew}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm whitespace-nowrap"
-        >
-          <IconPlus /> Novo Imóvel
-        </button>
       </div>
+
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
       {filtered.length > 0 && (

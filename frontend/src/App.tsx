@@ -161,7 +161,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50">
       <Sidebar
         current={page}
         onNavigate={setPage}
@@ -174,7 +174,7 @@ export default function App() {
       >
         <Header current={page} sidebarWidth={sidebarWidth} />
         <main className="pt-16 min-h-screen">
-          <div className="max-w-5xl mx-auto px-6 py-8">{renderPage()}</div>
+          <div className="max-w-6xl mx-auto px-6 py-6">{renderPage()}</div>
         </main>
       </div>
     </div>
