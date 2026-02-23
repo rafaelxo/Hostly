@@ -179,7 +179,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		return zero, err
 	}
 
-	meta, _, err := findRecordByID[T](file, id, s.getID)
+	meta, _, err := findRecordByID(file, id, s.getID)
 	if err != nil {
 		var zero T
 		return zero, err
@@ -224,7 +224,7 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 		return err
 	}
 
-	meta, _, err := findRecordByID[T](file, id, s.getID)
+	meta, _, err := findRecordByID(file, id, s.getID)
 	if err != nil {
 		return err
 	}
