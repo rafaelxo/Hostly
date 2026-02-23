@@ -136,7 +136,7 @@ const MOCK_RESERVAS: Reserva[] = [
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
