@@ -10,7 +10,7 @@ type ReservationFileRepository struct {
 }
 
 func NewReservationFileRepository(path string) (reservationuc.Repository, error) {
-	store, err := newBinaryEntityStore[domain.Reservation](
+	store, err := newBinaryEntityStore(
 		path,
 		func(r domain.Reservation) int { return r.ID },
 		func(r *domain.Reservation, id int) { r.ID = id },

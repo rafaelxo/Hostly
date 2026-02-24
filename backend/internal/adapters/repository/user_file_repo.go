@@ -10,7 +10,7 @@ type UserFileRepository struct {
 }
 
 func NewUserFileRepository(path string) (useruc.Repository, error) {
-	store, err := newBinaryEntityStore[domain.User](
+	store, err := newBinaryEntityStore(
 		path,
 		func(u domain.User) int { return u.ID },
 		func(u *domain.User, id int) { u.ID = id },

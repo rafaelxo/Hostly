@@ -10,7 +10,7 @@ type PropertyFileRepository struct {
 }
 
 func NewPropertyFileRepository(path string) (property.Repository, error) {
-	store, err := newBinaryEntityStore[domain.Property](
+	store, err := newBinaryEntityStore(
 		path,
 		func(p domain.Property) int { return p.ID },
 		func(p *domain.Property, id int) { p.ID = id },

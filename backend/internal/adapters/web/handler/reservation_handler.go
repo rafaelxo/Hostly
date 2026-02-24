@@ -34,22 +34,6 @@ func NewReservationHandler(svc reservationuc.Service) *ReservationHandler {
 }
 
 func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
-	propertyID := r.URL.Query().Get("idImovel")
-	if propertyID != "" {
-		id, err := strconv.Atoi(propertyID)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, err)
-			return
-		}
-		items, err := h.svc.GetByPropertyID(id)
-		if err != nil {
-			respondDomainError(w, err)
-			return
-		}
-		respondJSON(w, http.StatusOK, items)
-		return
-	}
-
 	items, err := h.svc.GetAll()
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
