@@ -1,5 +1,6 @@
 # Hostly 🏠
-### Sistema de Gestão de Locação de Imóveis por Temporada
+
+## Sistema de Gestão de Locação de Imóveis por Temporada
 
 Projeto desenvolvido para a disciplina **AEDs III (Algoritmos e Estruturas de Dados III)**, com foco em modelagem de dados, persistência em arquivos binários e aplicação de arquitetura em camadas.
 
@@ -22,6 +23,8 @@ O projeto também aplica conceitos modernos de arquitetura de software no back-e
 ## 🎯 Objetivos da Fase 1
 
 - Implementar o CRUD completo da entidade **Imóvel**
+- Implementar CRUD básico da entidade **Usuário (Anfitrião)**
+- Implementar cadastro/listagem/consulta da entidade **Reserva**
 - Persistir dados em arquivo binário
 - Implementar exclusão lógica (lápide)
 - Estruturar o projeto com Arquitetura Hexagonal (Back-end)
@@ -40,22 +43,25 @@ Arquitetura: **Hexagonal (Ports and Adapters)**
 Estrutura em camadas:
 
 - **Domain**
-  - Entidade `Imovel`
+  - Entidades `Usuario`, `Imovel` e `Reserva`
   - Regras de validação
 - **Application**
-  - Casos de uso (Create, Read, Update, Delete, List)
+  - Casos de uso por entidade (Create, Read, Update, Delete, List)
 - **Ports**
-  - Interfaces de repositório
+  - Interfaces de repositório (`UsuarioRepository`, `ImovelRepository`, `ReservaRepository`)
 - **Adapters**
   - Implementação concreta de persistência em arquivo binário
+  - API HTTP REST consumível pelo front-end
 
 ### 📁 Estrutura do Arquivo Binário
 
 **Cabeçalho:**
+
 - Último ID utilizado
 - Quantidade de registros
 
 **Registro:**
+
 - Lápide (boolean)
 - Tamanho do registro
 - Dados serializados do imóvel
@@ -65,11 +71,13 @@ Estrutura em camadas:
 ### 🔹 Front-end
 
 Tecnologias:
+
 - React
 - TypeScript
 - Tailwind CSS
 
 Arquitetura:
+
 - **Atomic Design**
   - Atoms
   - Molecules
@@ -83,16 +91,38 @@ Arquitetura:
 
 ### Imóvel
 
-| Campo | Tipo |
-|-------|------|
-| idImovel | integer (PK) |
-| titulo | string |
-| descricao | string |
-| cidade | string |
-| valorDiaria | double |
-| dataCadastro | date |
-| fotos | lista de strings |
-| ativo | boolean |
+| Campo        | Tipo             |
+| ------------ | ---------------- |
+| idImovel     | integer (PK)     |
+| titulo       | string           |
+| descricao    | string           |
+| cidade       | string           |
+| valorDiaria  | double           |
+| dataCadastro | date             |
+| fotos        | lista de strings |
+| ativo        | boolean          |
+
+### Usuário
+
+| Campo     | Tipo               |
+| --------- | ------------------ |
+| idUsuario | integer (PK)       |
+| nome      | string             |
+| email     | string             |
+| senha     | string             |
+| tipo      | ADMIN \| ANFITRIAO |
+| ativo     | boolean            |
+
+### Reserva
+
+| Campo       | Tipo         |
+| ----------- | ------------ |
+| idReserva   | integer (PK) |
+| idImovel    | integer (FK) |
+| nomeHospede | string       |
+| dataInicio  | date         |
+| dataFim     | date         |
+| valorTotal  | double       |
 
 ---
 
@@ -103,6 +133,31 @@ Arquitetura:
 - ✅ Consultar imóvel por ID
 - ✅ Atualizar imóvel
 - ✅ Excluir imóvel (exclusão lógica)
+- ✅ Cadastrar anfitrião
+- ✅ Listar anfitriões ativos
+- ✅ Atualizar anfitrião
+- ✅ Excluir anfitrião (exclusão lógica)
+- ✅ Cadastrar reserva associada a imóvel
+- ✅ Listar reservas (geral e por imóvel)
+- ✅ Consultar reserva por ID
+
+---
+
+## 🔌 Endpoints da API
+
+- `GET /imoveis`
+- `POST /imoveis`
+- `GET /imoveis/{id}`
+- `PUT /imoveis/{id}`
+- `DELETE /imoveis/{id}`
+- `POST /usuarios`
+- `GET /usuarios/anfitrioes`
+- `PUT /usuarios/{id}`
+- `DELETE /usuarios/{id}`
+- `GET /reservas`
+- `GET /reservas/{id}`
+- `POST /reservas`
+- `GET /dashboard/stats`
 
 ---
 

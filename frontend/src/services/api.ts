@@ -23,7 +23,7 @@ export interface Anfitriao {
 export interface Reserva {
   idReserva: number;
   idImovel: number;
-  nomeHospede: string;
+  idHospede: number;
   dataInicio: string;
   dataFim: string;
   valorTotal: number;
@@ -111,7 +111,7 @@ const MOCK_RESERVAS: Reserva[] = [
   {
     idReserva: 1,
     idImovel: 1,
-    nomeHospede: "Ana Lima",
+    idHospede: 3,
     dataInicio: "2026-03-01",
     dataFim: "2026-03-05",
     valorTotal: 1120,
@@ -119,7 +119,7 @@ const MOCK_RESERVAS: Reserva[] = [
   {
     idReserva: 2,
     idImovel: 2,
-    nomeHospede: "Carlos Mota",
+    idHospede: 1,
     dataInicio: "2026-03-10",
     dataFim: "2026-03-15",
     valorTotal: 2600,
@@ -127,7 +127,7 @@ const MOCK_RESERVAS: Reserva[] = [
   {
     idReserva: 3,
     idImovel: 4,
-    nomeHospede: "Fernanda Costa",
+    idHospede: 2,
     dataInicio: "2026-04-01",
     dataFim: "2026-04-03",
     valorTotal: 900,
@@ -136,7 +136,7 @@ const MOCK_RESERVAS: Reserva[] = [
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -252,6 +252,26 @@ export const reservaService = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+  async update(id: number, data: Partial<Reserva>): Promise<Reserva> {
+    if (USE_MOCK) {
+      await delay(300);
+      return {
+        ...MOCK_RESERVAS.find((r) => r.idReserva === id)!,
+        ...data,
+      } as Reserva;
+    }
+    return request<Reserva>(`/reservas/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  async delete(id: number): Promise<void> {
+    if (USE_MOCK) {
+      await delay(200);
+      return;
+    }
+    return request<void>(`/reservas/${id}`, { method: "DELETE" });
   },
 };
 
