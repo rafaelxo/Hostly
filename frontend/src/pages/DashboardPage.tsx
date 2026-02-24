@@ -29,7 +29,7 @@ export function DashboardPage() {
         },
         {
           label: "Reservas Ativas",
-          value: stats.reservasAtivas,
+          value: stats.totalReservas,
           sub: "em andamento",
           accent: "border-l-sky-400",
         },

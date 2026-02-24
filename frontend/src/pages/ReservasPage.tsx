@@ -97,7 +97,6 @@ export function ReservasPage() {
         nomeHospede: form.nomeHospede,
         dataInicio: form.dataInicio,
         dataFim: form.dataFim,
-        valorTotal: calcTotal(),
       };
 
       if (view === "new") {

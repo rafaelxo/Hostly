@@ -32,9 +32,12 @@ export interface Reserva {
 export interface DashboardStats {
   totalImoveis: number;
   totalAnfitrioes: number;
-  reservasAtivas: number;
+  totalReservas: number;
   receitaTotal: number;
 }
+
+export type CreateReservaInput = Omit<Reserva, "idReserva" | "valorTotal">;
+export type UpdateReservaInput = Partial<CreateReservaInput>;
 
 const MOCK_IMOVEIS: Imovel[] = [
   {
@@ -243,7 +246,7 @@ export const reservaService = {
     }
     return request<Reserva[]>(`/reservas?idImovel=${idImovel}`);
   },
-  async create(data: Omit<Reserva, "idReserva">): Promise<Reserva> {
+  async create(data: CreateReservaInput): Promise<Reserva> {
     if (USE_MOCK) {
       await delay(300);
       return { ...data, idReserva: Date.now() };
@@ -253,7 +256,7 @@ export const reservaService = {
       body: JSON.stringify(data),
     });
   },
-  async update(id: number, data: Partial<Reserva>): Promise<Reserva> {
+  async update(id: number, data: UpdateReservaInput): Promise<Reserva> {
     if (USE_MOCK) {
       await delay(300);
       return {
@@ -282,8 +285,8 @@ export const dashboardService = {
       return {
         totalImoveis: MOCK_IMOVEIS.filter((i) => i.ativo).length,
         totalAnfitrioes: MOCK_ANFITRIOES.filter((a) => a.ativo).length,
-        reservasAtivas: MOCK_RESERVAS.length,
-        receitaTotal: MOCK_RESERVAS.reduce((acc, r) => acc + r.valorTotal, 0),
+        totalReservas: MOCK_RESERVAS.length,
+        receitaTotal: 4620,
       };
     }
     return request<DashboardStats>("/dashboard/stats");

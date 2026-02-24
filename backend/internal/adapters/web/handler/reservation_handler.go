@@ -10,19 +10,17 @@ import (
 )
 
 type createReservationRequest struct {
-	PropertyID int     `json:"idImovel"`
-	GuestID    int     `json:"idHospede"`
-	StartDate  string  `json:"dataInicio"`
-	EndDate    string  `json:"dataFim"`
-	TotalValue float64 `json:"valorTotal"`
+	PropertyID int    `json:"idImovel"`
+	GuestID    int    `json:"idHospede"`
+	StartDate  string `json:"dataInicio"`
+	EndDate    string `json:"dataFim"`
 }
 
 type reservationUpdatePayload struct {
-	PropertyID *int     `json:"idImovel"`
-	GuestID    *int     `json:"idHospede"`
-	StartDate  *string  `json:"dataInicio"`
-	EndDate    *string  `json:"dataFim"`
-	TotalValue *float64 `json:"valorTotal"`
+	PropertyID *int    `json:"idImovel"`
+	GuestID    *int    `json:"idHospede"`
+	StartDate  *string `json:"dataInicio"`
+	EndDate    *string `json:"dataFim"`
 }
 
 type ReservationHandler struct {
@@ -53,7 +51,6 @@ func (h *ReservationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		GuestID:    req.GuestID,
 		StartDate:  req.StartDate,
 		EndDate:    req.EndDate,
-		TotalValue: req.TotalValue,
 	}
 	created, err := h.svc.Create(payload)
 	if err != nil {

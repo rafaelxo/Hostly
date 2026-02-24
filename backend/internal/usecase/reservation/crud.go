@@ -1,13 +1,16 @@
 package reservation
 
-import "backend/internal/domain"
+import (
+	"backend/internal/domain"
+	"math"
+	"time"
+)
 
 type ReservationUpdate struct {
 	PropertyID *int
 	GuestID    *int
 	StartDate  *string
 	EndDate    *string
-	TotalValue *float64
 }
 
 func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
@@ -22,6 +25,13 @@ func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 	if !property.Active {
 		return domain.Reservation{}, domain.ErrInvalidEntity
 	}
+
+	totalValue, err := calculateTotalValue(property.DailyRate, item.StartDate, item.EndDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	item.TotalValue = totalValue
 
 	return s.repo.Create(item)
 }
@@ -67,21 +77,25 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 	if item.EndDate != nil {
 		existing.EndDate = *item.EndDate
 	}
-	if item.TotalValue != nil {
-		existing.TotalValue = *item.TotalValue
-	}
 	if err := existing.Validate(); err != nil {
 		return domain.Reservation{}, err
 	}
-	if item.PropertyID != nil {
-		property, err := s.propertyRepo.GetByID(existing.PropertyID)
-		if err != nil {
-			return domain.Reservation{}, err
-		}
-		if !property.Active {
-			return domain.Reservation{}, domain.ErrInvalidEntity
-		}
+
+	property, err := s.propertyRepo.GetByID(existing.PropertyID)
+	if err != nil {
+		return domain.Reservation{}, err
 	}
+	if !property.Active {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
+	totalValue, err := calculateTotalValue(property.DailyRate, existing.StartDate, existing.EndDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	existing.TotalValue = totalValue
+
 	return s.repo.Update(id, existing)
 }
 
@@ -90,4 +104,23 @@ func (s *service) Delete(id int) error {
 		return domain.ErrInvalidEntity
 	}
 	return s.repo.Delete(id)
+}
+
+func calculateTotalValue(dailyRate float64, startDate string, endDate string) (float64, error) {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return 0, domain.ErrInvalidEntity
+	}
+
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return 0, domain.ErrInvalidEntity
+	}
+
+	nights := math.Ceil(end.Sub(start).Hours() / 24)
+	if nights < 0 {
+		return 0, domain.ErrInvalidEntity
+	}
+
+	return nights * dailyRate, nil
 }
