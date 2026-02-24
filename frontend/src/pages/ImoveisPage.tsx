@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Badge,
   ErrorMsg,
@@ -15,7 +15,7 @@ import {
   IconSearch,
   IconTrash,
 } from "../components/icons";
-import { useImoveis, useUsuarios } from "../hooks/useData";
+import { useUsuarios } from "../hooks/useData";
 import { imoveisService, type Imovel } from "../services/api";
 
 type View = "list" | "new" | "edit";
@@ -40,8 +40,20 @@ const initialForm: FormState = {
   ativo: true,
 };
 
-export function ImoveisPage() {
-  const { data: imoveis, loading, error, refetch } = useImoveis();
+type ImoveisPageProps = {
+  ownerId?: number;
+  canManage?: boolean;
+  title?: string;
+};
+
+export function ImoveisPage({
+  ownerId,
+  canManage = true,
+  title = "Imóveis",
+}: ImoveisPageProps) {
+  const [imoveis, setImoveis] = useState<Imovel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [search, setSearch] = useState("");
@@ -49,9 +61,29 @@ export function ImoveisPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
 
+  const refetch = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data =
+        typeof ownerId === "number"
+          ? await imoveisService.getByOwner(ownerId)
+          : await imoveisService.getAll();
+      setImoveis(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refetch();
+  }, [ownerId]);
+
   const filtered = useMemo(
     () =>
-      (imoveis ?? []).filter(
+      imoveis.filter(
         (i) =>
           i.titulo.toLowerCase().includes(search.toLowerCase()) ||
           i.cidade.toLowerCase().includes(search.toLowerCase()),
@@ -64,7 +96,10 @@ export function ImoveisPage() {
 
   const startNew = () => {
     setEditingId(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      idUsuario: ownerId ? String(ownerId) : "",
+    });
     setView("new");
   };
 
@@ -137,6 +172,7 @@ export function ImoveisPage() {
                   value={form.idUsuario}
                   onChange={(e) => set("idUsuario", e.target.value)}
                   required
+                  disabled={Boolean(ownerId)}
                 >
                   <option value="">Selecione um anfitrião...</option>
                   {(usuarios ?? [])
@@ -215,18 +251,20 @@ export function ImoveisPage() {
             >
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors shadow-sm"
-            >
-              <IconPlus />{" "}
-              {saving
-                ? "Salvando..."
-                : view === "new"
-                  ? "Cadastrar Imóvel"
-                  : "Salvar alterações"}
-            </button>
+            {canManage && (
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors shadow-sm"
+              >
+                <IconPlus />{" "}
+                {saving
+                  ? "Salvando..."
+                  : view === "new"
+                    ? "Cadastrar Imóvel"
+                    : "Salvar alterações"}
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -238,17 +276,19 @@ export function ImoveisPage() {
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">Imóveis</h3>
+            <h3 className="text-base font-semibold text-stone-800">{title}</h3>
             <p className="text-xs text-stone-400">
               {filtered.length} resultado(s) na listagem
             </p>
           </div>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm whitespace-nowrap"
-          >
-            <IconPlus /> Novo Imóvel
-          </button>
+          {canManage && (
+            <button
+              onClick={startNew}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm whitespace-nowrap"
+            >
+              <IconPlus /> Novo Imóvel
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5">
@@ -317,20 +357,22 @@ export function ImoveisPage() {
                     <Badge active={item.ativo} />
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.idImovel)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <IconTrash />
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                        >
+                          <IconEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.idImovel)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -347,12 +389,14 @@ export function ImoveisPage() {
           <p className="text-stone-400 text-sm mt-1">
             Cadastre um novo imóvel para começar.
           </p>
-          <button
-            onClick={startNew}
-            className="mt-5 flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
-          >
-            <IconPlus /> Novo Imóvel
-          </button>
+          {canManage && (
+            <button
+              onClick={startNew}
+              className="mt-5 flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+            >
+              <IconPlus /> Novo Imóvel
+            </button>
+          )}
         </div>
       )}
     </div>

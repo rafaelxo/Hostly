@@ -1,4 +1,5 @@
 const BASE_URL = "http://localhost:8080";
+const TOKEN_KEY = "hostly_token";
 
 export interface Imovel {
   idImovel: number;
@@ -28,6 +29,11 @@ export interface Usuario {
   email: string;
   tipo: UsuarioTipo;
   ativo: boolean;
+}
+
+export interface Session {
+  token: string;
+  usuario: Usuario;
 }
 
 export interface Reserva {
@@ -164,12 +170,41 @@ const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const USE_MOCK = false;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const isFormData = options?.body instanceof FormData;
+
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers ?? {}),
+    },
     ...options,
   });
   if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`);
-  return res.json();
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
+export function saveSession(session: Session) {
+  localStorage.setItem(TOKEN_KEY, session.token);
+}
+
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+export function hasSessionToken() {
+  return Boolean(localStorage.getItem(TOKEN_KEY));
 }
 
 export const imoveisService = {
@@ -179,6 +214,9 @@ export const imoveisService = {
       return MOCK_IMOVEIS;
     }
     return request<Imovel[]>("/imoveis");
+  },
+  async getByOwner(idUsuario: number): Promise<Imovel[]> {
+    return request<Imovel[]>(`/imoveis/usuario/${idUsuario}`);
   },
   async getById(id: number): Promise<Imovel> {
     if (USE_MOCK) {
@@ -305,6 +343,12 @@ export const reservaService = {
     }
     return request<Reserva[]>(`/reservas?idImovel=${idImovel}`);
   },
+  async getByHospede(idHospede: number): Promise<Reserva[]> {
+    return request<Reserva[]>(`/reservas/hospede/${idHospede}`);
+  },
+  async getByAnfitriao(idAnfitriao: number): Promise<Reserva[]> {
+    return request<Reserva[]>(`/reservas/anfitriao/${idAnfitriao}`);
+  },
   async create(data: CreateReservaInput): Promise<Reserva> {
     if (USE_MOCK) {
       await delay(300);
@@ -356,5 +400,44 @@ export const dashboardService = {
       };
     }
     return request<DashboardStats>("/dashboard/stats");
+  },
+};
+
+export const authService = {
+  async login(email: string, senha: string): Promise<Session> {
+    const session = await request<Session>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, senha }),
+    });
+    saveSession(session);
+    return session;
+  },
+  async register(input: {
+    nome: string;
+    email: string;
+    senha: string;
+    comoAnfitriao: boolean;
+    imovelInicial?: {
+      titulo: string;
+      descricao: string;
+      cidade: string;
+      valorDiaria: number;
+      dataCadastro: string;
+      fotos: string[];
+      ativo: boolean;
+    };
+  }): Promise<Session> {
+    const session = await request<Session>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    saveSession(session);
+    return session;
+  },
+  async me(): Promise<Usuario> {
+    return request<Usuario>("/auth/me");
+  },
+  logout() {
+    clearSession();
   },
 };

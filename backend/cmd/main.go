@@ -4,11 +4,12 @@ import (
 	"log"
 	"net/http"
 
-	web "backend/internal/adapters/web"
 	"backend/internal/adapters/repository"
+	web "backend/internal/adapters/web"
+	authuc "backend/internal/usecase/auth"
+	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
-	"backend/internal/usecase/property"
 )
 
 func main() {
@@ -30,11 +31,17 @@ func main() {
 	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo)
+	authService := authuc.NewService(userService, propertyService)
+
+	if _, err := authService.SeedDefaultAdmin(); err != nil {
+		log.Fatalf("erro ao criar admin padrao: %v", err)
+	}
 
 	router := web.NewRouter(web.Dependencies{
 		PropertyService:    propertyService,
 		UserService:        userService,
 		ReservationService: reservationService,
+		AuthService:        authService,
 	})
 
 	addr := ":8080"
@@ -43,5 +50,3 @@ func main() {
 		log.Fatalf("erro ao iniciar servidor: %v", err)
 	}
 }
-
-

@@ -11,14 +11,13 @@ type Reservation struct {
 	StartDate  string  `json:"dataInicio"`
 	EndDate    string  `json:"dataFim"`
 	TotalValue float64 `json:"valorTotal"`
-	
 }
 
 func (r Reservation) Validate() error {
 	if r.PropertyID <= 0 || r.TotalValue < 0 || r.GuestID <= 0 {
 		return ErrInvalidEntity
 	}
-	
+
 	start, err := time.Parse("2006-01-02", r.StartDate)
 	if err != nil {
 		return ErrInvalidEntity

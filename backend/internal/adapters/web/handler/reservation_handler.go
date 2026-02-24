@@ -40,6 +40,38 @@ func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, items)
 }
 
+func (h *ReservationHandler) ListByGuest(w http.ResponseWriter, r *http.Request) {
+	guestID, err := strconv.Atoi(r.PathValue("idHospede"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	items, err := h.svc.GetByGuestID(guestID)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, items)
+}
+
+func (h *ReservationHandler) ListByHost(w http.ResponseWriter, r *http.Request) {
+	hostID, err := strconv.Atoi(r.PathValue("idAnfitriao"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	items, err := h.svc.GetByHostID(hostID)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, items)
+}
+
 func (h *ReservationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
