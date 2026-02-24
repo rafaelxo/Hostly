@@ -2,7 +2,6 @@ package property
 
 import (
 	"time"
-
 	"backend/internal/domain"
 )
 

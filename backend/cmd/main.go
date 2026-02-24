@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-
 	"backend/internal/adapters/repository"
 	web "backend/internal/adapters/web"
 	authuc "backend/internal/usecase/auth"
