@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"

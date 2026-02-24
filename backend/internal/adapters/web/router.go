@@ -2,8 +2,8 @@ package web
 
 import (
 	"net/http"
-
 	"backend/internal/adapters/web/handler"
+	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -13,6 +13,7 @@ type Dependencies struct {
 	PropertyService    property.Service
 	UserService        useruc.Service
 	ReservationService reservationuc.Service
+	AuthService        authuc.Service
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -20,22 +21,21 @@ func NewRouter(deps Dependencies) http.Handler {
 	users := handler.NewUserHandler(deps.UserService)
 	reservs := handler.NewReservationHandler(deps.ReservationService)
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)
+	auth := handler.NewAuthHandler(deps.AuthService)
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// Imoveis Routes
 	mux.HandleFunc("GET /imoveis", props.List)
+	mux.HandleFunc("GET /imoveis/usuario/{idUsuario}", props.ListByOwner)
 	mux.HandleFunc("POST /imoveis", props.Create)
 	mux.HandleFunc("GET /imoveis/{id}", props.GetByID)
 	mux.HandleFunc("PUT /imoveis/{id}", props.Update)
 	mux.HandleFunc("DELETE /imoveis/{id}", props.Delete)
 
-	// Usuarios Routes
 	mux.HandleFunc("GET /usuarios", users.List)
 	mux.HandleFunc("POST /usuarios", users.Create)
 	mux.HandleFunc("GET /usuarios/anfitrioes", users.ListHosts)
@@ -43,14 +43,18 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("PUT /usuarios/{id}", users.Update)
 	mux.HandleFunc("DELETE /usuarios/{id}", users.Delete)
 
-	// Reservas Routes
 	mux.HandleFunc("GET /reservas", reservs.List)
+	mux.HandleFunc("GET /reservas/hospede/{idHospede}", reservs.ListByGuest)
+	mux.HandleFunc("GET /reservas/anfitriao/{idAnfitriao}", reservs.ListByHost)
 	mux.HandleFunc("POST /reservas", reservs.Create)
 	mux.HandleFunc("GET /reservas/{id}", reservs.GetByID)
 	mux.HandleFunc("PUT /reservas/{id}", reservs.Update)
 	mux.HandleFunc("DELETE /reservas/{id}", reservs.Delete)
 
-	// Dashboard Routes
+	mux.HandleFunc("POST /auth/register", auth.Register)
+	mux.HandleFunc("POST /auth/login", auth.Login)
+	mux.HandleFunc("GET /auth/me", auth.Me)
+
 	mux.HandleFunc("GET /dashboard/stats", dash.Stats)
 
 	return withCORS(mux)

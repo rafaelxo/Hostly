@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-
 	"backend/internal/domain"
 	"backend/internal/usecase/property"
 )
@@ -45,6 +44,22 @@ func (h *PropertyHandler) List(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err)
 		return
 	}
+	respondJSON(w, http.StatusOK, items)
+}
+
+func (h *PropertyHandler) ListByOwner(w http.ResponseWriter, r *http.Request) {
+	ownerID, err := strconv.Atoi(r.PathValue("idUsuario"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	items, err := h.svc.GetByOwnerID(ownerID)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
 	respondJSON(w, http.StatusOK, items)
 }
 
