@@ -197,7 +197,7 @@ func encodeReservation(item domain.Reservation) ([]byte, error) {
 	if err := writeInt32(buf, int32(item.PropertyID)); err != nil {
 		return nil, err
 	}
-	if err := writeString(buf, item.GuestName); err != nil {
+	if err := writeInt32(buf, int32(item.GuestID)); err != nil {
 		return nil, err
 	}
 	if err := writeString(buf, item.StartDate); err != nil {
@@ -229,10 +229,12 @@ func decodeReservation(payload []byte) (domain.Reservation, error) {
 	}
 	item.PropertyID = int(propertyID)
 
-	item.GuestName, err = readString(reader)
+	guestID, err := readInt32(reader)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
+	item.GuestID = int(guestID)
+
 	item.StartDate, err = readString(reader)
 	if err != nil {
 		return domain.Reservation{}, err

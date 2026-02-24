@@ -2,6 +2,14 @@ package user
 
 import "backend/internal/domain"
 
+type UserPatch struct {
+	Name     *string
+	Email    *string
+	Password *string
+	Type     *domain.UserType
+	Active   *bool
+}
+
 func (s *service) Create(item domain.User) (domain.User, error) {
 	if item.Type == "" {
 		item.Type = domain.UserTypeHost
@@ -34,7 +42,25 @@ func (s *service) GetAllHosts() ([]domain.User, error) {
 	return hosts, nil
 }
 
+func (s *service) GetAll() ([]domain.User, error) {
+	users, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	activeUsers := make([]domain.User, 0, len(users))
+	for _, u := range users {
+		if u.Active {
+			activeUsers = append(activeUsers, u)
+		}
+	}
+	return activeUsers, nil
+}
+
 func (s *service) Update(id int, item domain.User) (domain.User, error) {
+	if id <= 0 {
+		return domain.User{}, domain.ErrInvalidEntity
+	}
 	item.ID = id
 	if item.Type == "" {
 		item.Type = domain.UserTypeHost
@@ -43,6 +69,29 @@ func (s *service) Update(id int, item domain.User) (domain.User, error) {
 		return domain.User{}, err
 	}
 	return s.repo.Update(id, item)
+}
+
+func (s *service) Patch(id int, p UserPatch) (domain.User, error) {
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if p.Name != nil {
+		existing.Name = *p.Name
+	}
+	if p.Email != nil {
+		existing.Email = *p.Email
+	}
+	if p.Password != nil {
+		existing.Password = *p.Password
+	}
+	if p.Type != nil {
+		existing.Type = *p.Type
+	}
+	if p.Active != nil {
+		existing.Active = *p.Active
+	}
+	return s.Update(id, existing)
 }
 
 func (s *service) Delete(id int) error {

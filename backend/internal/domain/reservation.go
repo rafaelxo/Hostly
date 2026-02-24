@@ -1,21 +1,21 @@
 package domain
 
 import (
-	"strings"
 	"time"
 )
 
 type Reservation struct {
 	ID         int     `json:"idReserva"`
 	PropertyID int     `json:"idImovel"`
-	GuestName  string  `json:"nomeHospede"`
+	GuestID    int     `json:"idHospede"`
 	StartDate  string  `json:"dataInicio"`
 	EndDate    string  `json:"dataFim"`
 	TotalValue float64 `json:"valorTotal"`
+	
 }
 
 func (r Reservation) Validate() error {
-	if r.PropertyID <= 0 || strings.TrimSpace(r.GuestName) == "" || r.TotalValue < 0 {
+	if r.PropertyID <= 0 || r.TotalValue < 0 || r.GuestID <= 0 {
 		return ErrInvalidEntity
 	}
 

@@ -7,7 +7,7 @@ type Service interface {
 	GetByID(id int) (domain.Reservation, error)
 	GetAll() ([]domain.Reservation, error)
 	GetByPropertyID(propertyID int) ([]domain.Reservation, error)
-	Update(id int, item domain.Reservation) (domain.Reservation, error)
+	Update(id int, item ReservationUpdate) (domain.Reservation, error)
 	Delete(id int) error
 }
 

@@ -2,6 +2,14 @@ package reservation
 
 import "backend/internal/domain"
 
+type ReservationUpdate struct {
+	PropertyID *int
+	GuestID    *int
+	StartDate  *string
+	EndDate    *string
+	TotalValue *float64
+}
+
 func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 	if err := item.Validate(); err != nil {
 		return domain.Reservation{}, err
@@ -39,25 +47,42 @@ func (s *service) GetByPropertyID(propertyID int) ([]domain.Reservation, error) 
 	return s.repo.GetByPropertyID(propertyID)
 }
 
-func (s *service) Update(id int, item domain.Reservation) (domain.Reservation, error) {
+func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, error) {
 	if id <= 0 {
 		return domain.Reservation{}, domain.ErrInvalidEntity
 	}
-
-	item.ID = id
-	if err := item.Validate(); err != nil {
-		return domain.Reservation{}, err
-	}
-
-	property, err := s.propertyRepo.GetByID(item.PropertyID)
+	existing, err := s.repo.GetByID(id)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
-	if !property.Active {
-		return domain.Reservation{}, domain.ErrInvalidEntity
+	if item.PropertyID != nil {
+		existing.PropertyID = *item.PropertyID
 	}
-
-	return s.repo.Update(id, item)
+	if item.GuestID != nil {
+		existing.GuestID = *item.GuestID
+	}
+	if item.StartDate != nil {
+		existing.StartDate = *item.StartDate
+	}
+	if item.EndDate != nil {
+		existing.EndDate = *item.EndDate
+	}
+	if item.TotalValue != nil {
+		existing.TotalValue = *item.TotalValue
+	}
+	if err := existing.Validate(); err != nil {
+		return domain.Reservation{}, err
+	}
+	if item.PropertyID != nil {
+		property, err := s.propertyRepo.GetByID(existing.PropertyID)
+		if err != nil {
+			return domain.Reservation{}, err
+		}
+		if !property.Active {
+			return domain.Reservation{}, domain.ErrInvalidEntity
+		}
+	}
+	return s.repo.Update(id, existing)
 }
 
 func (s *service) Delete(id int) error {

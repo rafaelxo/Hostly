@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	handler "backend/internal/adapters/http"
+	web "backend/internal/adapters/web"
 	"backend/internal/adapters/repository"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -31,7 +31,7 @@ func main() {
 	userService := useruc.NewService(userRepo)
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo)
 
-	router := handler.NewRouter(handler.Dependencies{
+	router := web.NewRouter(web.Dependencies{
 		PropertyService:    propertyService,
 		UserService:        userService,
 		ReservationService: reservationService,

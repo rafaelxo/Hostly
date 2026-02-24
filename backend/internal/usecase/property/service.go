@@ -7,6 +7,7 @@ type Service interface {
 	GetByID(id int) (domain.Property, error)
 	GetAll() ([]domain.Property, error)
 	Update(id int, item domain.Property) (domain.Property, error)
+	Patch(id int, p PropertyPatch) (domain.Property, error)
 	Delete(id int) error
 }
 

@@ -13,7 +13,7 @@ type User struct {
 	ID       int      `json:"idUsuario"`
 	Name     string   `json:"nome"`
 	Email    string   `json:"email"`
-	Password string   `json:"senha,omitempty"`
+	Password string   `json:"-"`
 	Type     UserType `json:"tipo"`
 	Active   bool     `json:"ativo"`
 }

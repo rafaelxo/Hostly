@@ -1,14 +1,8 @@
 package domain
 
 import (
-	"errors"
 	"strings"
 	"time"
-)
-
-var (
-	ErrNotFound      = errors.New("registro nao encontrado")
-	ErrInvalidEntity = errors.New("entidade invalida")
 )
 
 type Property struct {
