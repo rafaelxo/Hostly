@@ -20,14 +20,14 @@ type PageId = "dashboard" | "imoveis" | "anfitrioes" | "reservas";
 const NAV = [
   { id: "dashboard" as PageId, label: "Dashboard", icon: <IconHome /> },
   { id: "imoveis" as PageId, label: "Imóveis", icon: <IconBuilding /> },
-  { id: "anfitrioes" as PageId, label: "Anfitriões", icon: <IconUsers /> },
+  { id: "anfitrioes" as PageId, label: "Usuários", icon: <IconUsers /> },
   { id: "reservas" as PageId, label: "Reservas", icon: <IconCalendar /> },
 ];
 
 const PAGE_TITLES: Record<PageId, string> = {
   dashboard: "Dashboard",
   imoveis: "Imóveis",
-  anfitrioes: "Anfitriões",
+  anfitrioes: "Usuários",
   reservas: "Reservas",
 };
 

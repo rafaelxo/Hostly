@@ -14,8 +14,9 @@ type Service interface {
 type service struct {
 	repo         Repository
 	propertyRepo PropertyReader
+	guestRepo    GuestReader
 }
 
-func NewService(repo Repository, propertyRepo PropertyReader) Service {
-	return &service{repo: repo, propertyRepo: propertyRepo}
+func NewService(repo Repository, propertyRepo PropertyReader, guestRepo GuestReader) Service {
+	return &service{repo: repo, propertyRepo: propertyRepo, guestRepo: guestRepo}
 }

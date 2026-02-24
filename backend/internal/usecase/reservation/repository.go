@@ -14,3 +14,7 @@ type Repository interface {
 type PropertyReader interface {
 	GetByID(id int) (domain.Property, error)
 }
+
+type GuestReader interface {
+	GetByID(id int) (domain.User, error)
+}

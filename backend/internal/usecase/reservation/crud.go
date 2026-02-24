@@ -26,6 +26,14 @@ func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 		return domain.Reservation{}, domain.ErrInvalidEntity
 	}
 
+	guest, err := s.guestRepo.GetByID(item.GuestID)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if !guest.Active {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
 	totalValue, err := calculateTotalValue(property.DailyRate, item.StartDate, item.EndDate)
 	if err != nil {
 		return domain.Reservation{}, err
@@ -86,6 +94,14 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 		return domain.Reservation{}, err
 	}
 	if !property.Active {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
+	guest, err := s.guestRepo.GetByID(existing.GuestID)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if !guest.Active {
 		return domain.Reservation{}, domain.ErrInvalidEntity
 	}
 

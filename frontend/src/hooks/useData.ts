@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  imoveisService,
   anfitriaoService,
-  reservaService,
   dashboardService,
-  type Imovel,
+  imoveisService,
+  reservaService,
+  usuarioService,
   type Anfitriao,
-  type Reserva,
   type DashboardStats,
+  type Imovel,
+  type Reserva,
+  type Usuario,
 } from "../services/api";
 
 function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
@@ -41,6 +43,10 @@ export function useImoveis() {
 
 export function useAnfitrioes() {
   return useAsync<Anfitriao[]>(() => anfitriaoService.getAll(), []);
+}
+
+export function useUsuarios() {
+  return useAsync<Usuario[]>(() => usuarioService.getAll(), []);
 }
 
 export function useReservas() {

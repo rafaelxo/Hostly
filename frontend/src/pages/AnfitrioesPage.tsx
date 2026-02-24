@@ -9,8 +9,12 @@ import {
   inputCls,
 } from "../components/common";
 import { IconEdit, IconPlus, IconTrash } from "../components/icons";
-import { useAnfitrioes } from "../hooks/useData";
-import { anfitriaoService, type Anfitriao } from "../services/api";
+import { useUsuarios } from "../hooks/useData";
+import {
+  usuarioService,
+  type Usuario,
+  type UsuarioTipo,
+} from "../services/api";
 
 type View = "list" | "new" | "edit";
 
@@ -18,11 +22,12 @@ const initialForm = {
   nome: "",
   email: "",
   senha: "",
+  tipo: "ANFITRIAO" as UsuarioTipo,
   ativo: true,
 };
 
 export function AnfitrioesPage() {
-  const { data: anfitrioes, loading, error, refetch } = useAnfitrioes();
+  const { data: usuarios, loading, error, refetch } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -37,20 +42,21 @@ export function AnfitrioesPage() {
     setView("new");
   };
 
-  const startEdit = (item: Anfitriao) => {
+  const startEdit = (item: Usuario) => {
     setEditingId(item.idUsuario);
     setForm({
       nome: item.nome,
       email: item.email,
       senha: "",
+      tipo: item.tipo,
       ativo: item.ativo,
     });
     setView("edit");
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm("Deseja excluir este anfitrião?")) return;
-    await anfitriaoService.delete(id);
+    if (!window.confirm("Deseja excluir este usuário?")) return;
+    await usuarioService.delete(id);
     await refetch();
   };
 
@@ -61,17 +67,15 @@ export function AnfitrioesPage() {
       const payload = {
         nome: form.nome,
         email: form.email,
-        tipo: "ANFITRIAO" as const,
+        tipo: form.tipo,
         ativo: form.ativo,
+        ...(form.senha ? { senha: form.senha } : {}),
       };
 
       if (view === "new") {
-        await anfitriaoService.create(payload);
+        await usuarioService.create(payload);
       } else if (editingId) {
-        await anfitriaoService.update(editingId, {
-          ...payload,
-          ...(form.senha ? { senha: form.senha } : {}),
-        });
+        await usuarioService.update(editingId, payload);
       }
 
       await refetch();
@@ -87,8 +91,8 @@ export function AnfitrioesPage() {
     return (
       <div>
         <FormHeader
-          title={view === "new" ? "Novo Anfitrião" : "Editar Anfitrião"}
-          subtitle="Cadastre ou altere os dados do anfitrião"
+          title={view === "new" ? "Novo Usuário" : "Editar Usuário"}
+          subtitle="Cadastre ou altere os dados do usuário"
           onBack={() => setView("list")}
         />
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -126,6 +130,18 @@ export function AnfitrioesPage() {
                   minLength={view === "new" ? 6 : undefined}
                 />
               </Field>
+              <Field label="Perfil" required>
+                <select
+                  className={inputCls}
+                  value={form.tipo}
+                  onChange={(e) => set("tipo", e.target.value as UsuarioTipo)}
+                  required
+                >
+                  <option value="ANFITRIAO">Anfitrião</option>
+                  <option value="HOSPEDE">Hóspede</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </Field>
               <Field label="Ativo">
                 <select
                   className={inputCls}
@@ -155,7 +171,7 @@ export function AnfitrioesPage() {
               {saving
                 ? "Salvando..."
                 : view === "new"
-                  ? "Cadastrar Anfitrião"
+                  ? "Cadastrar Usuário"
                   : "Salvar alterações"}
             </button>
           </div>
@@ -169,26 +185,24 @@ export function AnfitrioesPage() {
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">
-              Anfitriões
-            </h3>
+            <h3 className="text-base font-semibold text-stone-800">Usuários</h3>
             <p className="text-xs text-stone-400">
-              {(anfitrioes ?? []).length} perfil(is) ativo(s)
+              {(usuarios ?? []).length} perfil(is) ativo(s)
             </p>
           </div>
           <button
             onClick={startNew}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
           >
-            <IconPlus /> Novo Anfitrião
+            <IconPlus /> Novo Usuário
           </button>
         </div>
       </div>
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
-      {anfitrioes && (
+      {usuarios && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {anfitrioes.map((a) => (
+          {usuarios.map((a) => (
             <div
               key={a.idUsuario}
               className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm hover:shadow-md transition-shadow"
@@ -205,6 +219,7 @@ export function AnfitrioesPage() {
               </div>
               <p className="font-semibold text-stone-800">{a.nome}</p>
               <p className="text-sm text-stone-400 mt-0.5">{a.email}</p>
+              <p className="text-xs text-stone-500 mt-1">Perfil: {a.tipo}</p>
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">
                 <button
                   onClick={() => startEdit(a)}

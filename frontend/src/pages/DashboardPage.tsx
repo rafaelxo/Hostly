@@ -1,17 +1,22 @@
 import { Badge, ErrorMsg, Spinner } from "../components/common";
 import { IconBuilding } from "../components/icons";
 import {
-  useAnfitrioes,
   useDashboard,
   useImoveis,
   useReservas,
+  useUsuarios,
 } from "../hooks/useData";
 
 export function DashboardPage() {
   const { data: stats, loading, error } = useDashboard();
   const { data: imoveis } = useImoveis();
-  const { data: anfitrioes } = useAnfitrioes();
   const { data: reservas } = useReservas();
+  const { data: usuarios } = useUsuarios();
+
+  const getNomeHospede = (idHospede: number) => {
+    const usuario = (usuarios ?? []).find((u) => u.idUsuario === idHospede);
+    return usuario?.nome ?? `Usuário #${idHospede}`;
+  };
 
   const statCards = stats
     ? [
@@ -22,8 +27,8 @@ export function DashboardPage() {
           accent: "border-l-amber-400",
         },
         {
-          label: "Anfitriões",
-          value: stats.totalAnfitrioes,
+          label: "Usuários Ativos",
+          value: (usuarios ?? []).length,
           sub: "ativos",
           accent: "border-l-teal-400",
         },
@@ -124,7 +129,7 @@ export function DashboardPage() {
               Equipe ativa
             </h3>
             <div className="space-y-3">
-              {(anfitrioes ?? []).slice(0, 4).map((a) => (
+              {(usuarios ?? []).slice(0, 4).map((a) => (
                 <div
                   key={a.idUsuario}
                   className="flex items-center justify-between"
@@ -138,9 +143,9 @@ export function DashboardPage() {
                   <Badge active={a.ativo} />
                 </div>
               ))}
-              {(!anfitrioes || anfitrioes.length === 0) && (
+              {(!usuarios || usuarios.length === 0) && (
                 <p className="text-sm text-stone-400">
-                  Nenhum anfitrião cadastrado.
+                  Nenhum usuário cadastrado.
                 </p>
               )}
             </div>
@@ -157,7 +162,7 @@ export function DashboardPage() {
                   className="flex items-center justify-between text-sm"
                 >
                   <span className="text-stone-700 truncate pr-3">
-                    {r.nomeHospede}
+                    {getNomeHospede(r.idHospede)}
                   </span>
                   <span className="font-semibold text-stone-700">
                     R$ {r.valorTotal.toLocaleString("pt-BR")}
