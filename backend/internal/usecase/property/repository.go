@@ -10,4 +10,6 @@ type Repository interface {
 	Delete(id int) error
 }
 
-
+type UserReader interface {
+	GetByID(id int) (domain.User, error)
+}

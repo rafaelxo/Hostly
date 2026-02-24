@@ -21,6 +21,13 @@ func (s *service) Create(item domain.Property) (domain.Property, error) {
 	if item.CreatedAt == "" {
 		item.CreatedAt = time.Now().Format("2006-01-02")
 	}
+	owner, err := s.userRepo.GetByID(item.UserID)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	if !owner.Active || owner.Type != domain.UserTypeHost {
+		return domain.Property{}, domain.ErrInvalidEntity
+	}
 	if err := item.Validate(); err != nil {
 		return domain.Property{}, err
 	}
@@ -55,6 +62,13 @@ func (s *service) Update(id int, item domain.Property) (domain.Property, error) 
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
 	item.ID = id
+	owner, err := s.userRepo.GetByID(item.UserID)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	if !owner.Active || owner.Type != domain.UserTypeHost {
+		return domain.Property{}, domain.ErrInvalidEntity
+	}
 	if err := item.Validate(); err != nil {
 		return domain.Property{}, err
 	}
@@ -89,6 +103,14 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	}
 	if p.Active != nil {
 		existing.Active = *p.Active
+	}
+
+	owner, err := s.userRepo.GetByID(existing.UserID)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	if !owner.Active || owner.Type != domain.UserTypeHost {
+		return domain.Property{}, domain.ErrInvalidEntity
 	}
 
 	if err := existing.Validate(); err != nil {

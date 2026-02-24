@@ -15,7 +15,7 @@ import {
   IconSearch,
   IconTrash,
 } from "../components/icons";
-import { useImoveis } from "../hooks/useData";
+import { useImoveis, useUsuarios } from "../hooks/useData";
 import { imoveisService, type Imovel } from "../services/api";
 
 type View = "list" | "new" | "edit";
@@ -31,7 +31,7 @@ type FormState = {
 };
 
 const initialForm: FormState = {
-  idUsuario: "1",
+  idUsuario: "",
   titulo: "",
   descricao: "",
   cidade: "",
@@ -42,6 +42,7 @@ const initialForm: FormState = {
 
 export function ImoveisPage() {
   const { data: imoveis, loading, error, refetch } = useImoveis();
+  const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -130,15 +131,22 @@ export function ImoveisPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormCard title="Informações Básicas">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="ID do Anfitrião" required>
-                <input
+              <Field label="Anfitrião" required>
+                <select
                   className={inputCls}
-                  type="number"
-                  min="1"
                   value={form.idUsuario}
                   onChange={(e) => set("idUsuario", e.target.value)}
                   required
-                />
+                >
+                  <option value="">Selecione um anfitrião...</option>
+                  {(usuarios ?? [])
+                    .filter((u) => u.tipo === "ANFITRIAO")
+                    .map((u) => (
+                      <option key={u.idUsuario} value={u.idUsuario}>
+                        {u.nome}
+                      </option>
+                    ))}
+                </select>
               </Field>
               <Field label="Cidade" required>
                 <input

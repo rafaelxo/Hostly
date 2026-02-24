@@ -20,6 +20,16 @@ export interface Anfitriao {
   ativo: boolean;
 }
 
+export type UsuarioTipo = "ADMIN" | "ANFITRIAO" | "HOSPEDE";
+
+export interface Usuario {
+  idUsuario: number;
+  nome: string;
+  email: string;
+  tipo: UsuarioTipo;
+  ativo: boolean;
+}
+
 export interface Reserva {
   idReserva: number;
   idImovel: number;
@@ -32,9 +42,22 @@ export interface Reserva {
 export interface DashboardStats {
   totalImoveis: number;
   totalAnfitrioes: number;
-  reservasAtivas: number;
+  totalReservas: number;
   receitaTotal: number;
 }
+
+export type CreateUsuarioInput = {
+  nome: string;
+  email: string;
+  senha?: string;
+  tipo: UsuarioTipo;
+  ativo: boolean;
+};
+
+export type UpdateUsuarioInput = Partial<CreateUsuarioInput>;
+
+export type CreateReservaInput = Omit<Reserva, "idReserva" | "valorTotal">;
+export type UpdateReservaInput = Partial<CreateReservaInput>;
 
 const MOCK_IMOVEIS: Imovel[] = [
   {
@@ -106,6 +129,8 @@ const MOCK_ANFITRIOES: Anfitriao[] = [
     ativo: false,
   },
 ];
+
+const MOCK_USUARIOS: Usuario[] = [...MOCK_ANFITRIOES];
 
 const MOCK_RESERVAS: Reserva[] = [
   {
@@ -228,6 +253,43 @@ export const anfitriaoService = {
   },
 };
 
+export const usuarioService = {
+  async getAll(): Promise<Usuario[]> {
+    if (USE_MOCK) {
+      await delay(400);
+      return MOCK_USUARIOS;
+    }
+    return request<Usuario[]>("/usuarios");
+  },
+  async create(data: CreateUsuarioInput): Promise<Usuario> {
+    if (USE_MOCK) {
+      await delay(300);
+      return { ...data, idUsuario: Date.now() } as Usuario;
+    }
+    return request<Usuario>("/usuarios", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: number, data: UpdateUsuarioInput): Promise<Usuario> {
+    if (USE_MOCK) {
+      await delay(300);
+      return { ...MOCK_USUARIOS.find((u) => u.idUsuario === id)!, ...data };
+    }
+    return request<Usuario>(`/usuarios/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  async delete(id: number): Promise<void> {
+    if (USE_MOCK) {
+      await delay(200);
+      return;
+    }
+    return request<void>(`/usuarios/${id}`, { method: "DELETE" });
+  },
+};
+
 export const reservaService = {
   async getAll(): Promise<Reserva[]> {
     if (USE_MOCK) {
@@ -243,17 +305,24 @@ export const reservaService = {
     }
     return request<Reserva[]>(`/reservas?idImovel=${idImovel}`);
   },
-  async create(data: Omit<Reserva, "idReserva">): Promise<Reserva> {
+  async create(data: CreateReservaInput): Promise<Reserva> {
     if (USE_MOCK) {
       await delay(300);
-      return { ...data, idReserva: Date.now() };
+      const imovel = MOCK_IMOVEIS.find((i) => i.idImovel === data.idImovel);
+      const dias = Math.ceil(
+        (new Date(data.dataFim).getTime() -
+          new Date(data.dataInicio).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+      const valorTotal = (imovel?.valorDiaria || 0) * dias;
+      return { ...data, idReserva: Date.now(), valorTotal };
     }
     return request<Reserva>("/reservas", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
-  async update(id: number, data: Partial<Reserva>): Promise<Reserva> {
+  async update(id: number, data: UpdateReservaInput): Promise<Reserva> {
     if (USE_MOCK) {
       await delay(300);
       return {
@@ -282,8 +351,8 @@ export const dashboardService = {
       return {
         totalImoveis: MOCK_IMOVEIS.filter((i) => i.ativo).length,
         totalAnfitrioes: MOCK_ANFITRIOES.filter((a) => a.ativo).length,
-        reservasAtivas: MOCK_RESERVAS.length,
-        receitaTotal: MOCK_RESERVAS.reduce((acc, r) => acc + r.valorTotal, 0),
+        totalReservas: MOCK_RESERVAS.length,
+        receitaTotal: 4620,
       };
     }
     return request<DashboardStats>("/dashboard/stats");

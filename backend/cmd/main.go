@@ -27,9 +27,9 @@ func main() {
 		log.Fatalf("erro ao inicializar repositorio de reservas: %v", err)
 	}
 
-	propertyService := property.NewService(propertyRepo)
+	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
-	reservationService := reservationuc.NewService(reservationRepo, propertyRepo)
+	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo)
 
 	router := web.NewRouter(web.Dependencies{
 		PropertyService:    propertyService,

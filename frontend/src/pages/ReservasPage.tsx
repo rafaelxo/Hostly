@@ -8,21 +8,21 @@ import {
   inputCls,
 } from "../components/common";
 import { IconEdit, IconPlus, IconTrash } from "../components/icons";
-import { useImoveis, useReservas } from "../hooks/useData";
+import { useImoveis, useReservas, useUsuarios } from "../hooks/useData";
 import { reservaService } from "../services/api";
 
 type View = "list" | "new" | "edit";
 
 type FormState = {
   idImovel: string;
-  nomeHospede: string;
+  idHospede: string;
   dataInicio: string;
   dataFim: string;
 };
 
 const initialForm: FormState = {
   idImovel: "",
-  nomeHospede: "",
+  idHospede: "",
   dataInicio: "",
   dataFim: "",
 };
@@ -41,6 +41,7 @@ const formatPtBrDate = (value: string) => {
 export function ReservasPage() {
   const { data: reservas, loading, error, refetch } = useReservas();
   const { data: imoveis } = useImoveis();
+  const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -58,14 +59,14 @@ export function ReservasPage() {
   const startEdit = (item: {
     idReserva: number;
     idImovel: number;
-    nomeHospede: string;
+    idHospede: number;
     dataInicio: string;
     dataFim: string;
   }) => {
     setEditingId(item.idReserva);
     setForm({
       idImovel: String(item.idImovel),
-      nomeHospede: item.nomeHospede,
+      idHospede: String(item.idHospede),
       dataInicio: item.dataInicio,
       dataFim: item.dataFim,
     });
@@ -94,10 +95,9 @@ export function ReservasPage() {
     try {
       const payload = {
         idImovel: Number(form.idImovel),
-        nomeHospede: form.nomeHospede,
+        idHospede: Number(form.idHospede),
         dataInicio: form.dataInicio,
         dataFim: form.dataFim,
-        valorTotal: calcTotal(),
       };
 
       if (view === "new") {
@@ -118,6 +118,11 @@ export function ReservasPage() {
     if (!window.confirm("Deseja excluir esta reserva?")) return;
     await reservaService.delete(id);
     await refetch();
+  };
+
+  const getNomeHospede = (idHospede: number) => {
+    const usuario = (usuarios ?? []).find((u) => u.idUsuario === idHospede);
+    return usuario?.nome ?? `Usuário #${idHospede}`;
   };
 
   if (view !== "list") {
@@ -149,13 +154,20 @@ export function ReservasPage() {
                 </Field>
               </div>
               <div className="md:col-span-2">
-                <Field label="Nome do hóspede" required>
-                  <input
+                <Field label="Hóspede" required>
+                  <select
                     className={inputCls}
-                    value={form.nomeHospede}
-                    onChange={(e) => set("nomeHospede", e.target.value)}
+                    value={form.idHospede}
+                    onChange={(e) => set("idHospede", e.target.value)}
                     required
-                  />
+                  >
+                    <option value="">Selecione um hóspede...</option>
+                    {(usuarios ?? []).map((u) => (
+                      <option key={u.idUsuario} value={u.idUsuario}>
+                        {u.nome}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               </div>
               <Field label="Data início" required>
@@ -259,7 +271,7 @@ export function ReservasPage() {
                   className="hover:bg-stone-50 transition-colors"
                 >
                   <td className="px-6 py-4 text-sm font-medium text-stone-800">
-                    {r.nomeHospede}
+                    {getNomeHospede(r.idHospede)}
                   </td>
                   <td className="px-4 py-4 text-sm text-stone-500">
                     Imóvel #{r.idImovel}
