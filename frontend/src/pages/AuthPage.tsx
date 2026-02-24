@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ErrorMsg, Field, FormCard, inputCls } from "../components/common";
+import logoImg from "../assets/logo.png";
 import { authService } from "../services/api";
 
 type AuthPageProps = {
@@ -12,6 +13,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginSenha, setLoginSenha] = useState("");
@@ -24,6 +26,31 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [imovelDescricao, setImovelDescricao] = useState("");
   const [imovelCidade, setImovelCidade] = useState("");
   const [imovelDiaria, setImovelDiaria] = useState("");
+
+  function evaluatePassword(pw: string) {
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+    const labels = ["Muito fraca", "Fraca", "Média", "Forte", "Muito forte"];
+    const colors = ["bg-red-400", "bg-rose-400", "bg-amber-400", "bg-lime-400", "bg-green-500"];
+    return { score, label: labels[score], color: colors[score] };
+  }
+
+  const PasswordStrength = ({ pw }: { pw: string }) => {
+    const { score, label, color } = evaluatePassword(pw);
+    const percent = Math.min(100, (score / 4) * 100);
+    return (
+      <div className="space-y-1">
+        <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+          <div className={`${color} h-2`} style={{ width: `${percent}%` }} />
+        </div>
+        <p className="text-xs text-stone-500">Força: <span className="font-semibold">{label}</span></p>
+      </div>
+    );
+  };
 
   const doLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +90,11 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
             }
           : {}),
       });
-      await onAuthenticated();
+      // mostrar mensagem de sucesso e então redirecionar/login
+      setSuccess("Conta criada com sucesso. Entrando...");
+      setTimeout(async () => {
+        await onAuthenticated();
+      }, 900);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Erro ao cadastrar usuário",
@@ -77,10 +108,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-4">
         <div className="text-center">
+          <img src={logoImg} alt="Hostly" className="mx-auto w-20 h-20 mb-3 object-contain" />
           <h1 className="text-2xl font-bold text-stone-800">Hostly</h1>
-          <p className="text-sm text-stone-500">
-            Acesse sua conta para continuar
-          </p>
+          <p className="text-sm text-stone-500">Acesse sua conta para continuar</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-2 flex">
@@ -103,6 +133,11 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
         </div>
 
         {error && <ErrorMsg msg={error} />}
+        {success && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-5 py-4 text-sm">
+            {success}
+          </div>
+        )}
 
         {tab === "login" ? (
           <form onSubmit={doLogin} className="space-y-4">
@@ -166,6 +201,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                     onChange={(e) => setRegSenha(e.target.value)}
                     required
                   />
+                  <div className="mt-2">
+                    <PasswordStrength pw={regSenha} />
+                  </div>
                 </Field>
                 <Field label="Tipo de cadastro" required>
                   <select
