@@ -10,6 +10,7 @@ import {
   IconSearch,
   IconUsers,
 } from "./components/icons";
+import logoImg from "./assets/logo.png";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -99,11 +100,8 @@ const Sidebar = ({
     className={`fixed top-0 left-0 h-full z-30 bg-white border-r border-stone-100 flex flex-col shadow-sm transition-all duration-300 ${collapsed ? "w-[68px]" : "w-60"}`}
   >
     <div className="flex items-center gap-3 px-4 py-5 border-b border-stone-100">
-      <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z" />
-          <path d="M9 21V12h6v9" fill="rgba(0,0,0,0.15)" />
-        </svg>
+      <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm bg-white">
+        <img src={logoImg} alt="Hostly" className="w-full h-full object-cover" />
       </div>
       {!collapsed && (
         <span className="text-stone-800 font-bold text-lg tracking-tight">
