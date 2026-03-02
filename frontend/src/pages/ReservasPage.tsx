@@ -38,10 +38,21 @@ const formatPtBrDate = (value: string) => {
   return date ? date.toLocaleDateString("pt-BR") : value;
 };
 
+const isReservaAtiva = (reserva: { dataInicio: string; dataFim: string }) => {
+  const startDate = parseLocalDate(reserva.dataInicio);
+  const endDate = parseLocalDate(reserva.dataFim);
+  if (!startDate || !endDate) return false;
+
+  const today = new Date();
+  const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return startDate <= now && endDate >= now;
+};
+
 type ReservasPageProps = {
   guestId?: number;
   hostId?: number;
   fixedGuestId?: number;
+  activeOnly?: boolean;
   canManage?: boolean;
   title?: string;
 };
@@ -50,6 +61,7 @@ export function ReservasPage({
   guestId,
   hostId,
   fixedGuestId,
+  activeOnly = false,
   canManage = true,
   title = "Reservas",
 }: ReservasPageProps) {
@@ -82,7 +94,9 @@ export function ReservasPage({
           : typeof guestId === "number"
             ? await reservaService.getByHospede(guestId)
             : await reservaService.getAll();
-      setReservas(data);
+      setReservas(
+        activeOnly ? data.filter((item) => isReservaAtiva(item)) : data,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
@@ -92,7 +106,7 @@ export function ReservasPage({
 
   useEffect(() => {
     void refetch();
-  }, [guestId, hostId]);
+  }, [guestId, hostId, activeOnly]);
 
   const set = (k: keyof FormState, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
