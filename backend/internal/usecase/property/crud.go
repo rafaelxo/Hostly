@@ -1,8 +1,8 @@
 package property
 
 import (
-	"time"
 	"backend/internal/domain"
+	"time"
 )
 
 type PropertyPatch struct {
@@ -24,13 +24,27 @@ func (s *service) Create(item domain.Property) (domain.Property, error) {
 	if err != nil {
 		return domain.Property{}, err
 	}
-	if !owner.Active || owner.Type != domain.UserTypeHost {
+	if !owner.Active {
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
 	if err := item.Validate(); err != nil {
 		return domain.Property{}, err
 	}
-	return s.repo.Create(item)
+
+	created, err := s.repo.Create(item)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	if owner.Type == domain.UserTypeGuest {
+		owner.Type = domain.UserTypeHost
+		if _, err := s.userRepo.Update(owner.ID, owner); err != nil {
+			_ = s.repo.Delete(created.ID)
+			return domain.Property{}, err
+		}
+	}
+
+	return created, nil
 }
 
 func (s *service) GetByID(id int) (domain.Property, error) {
@@ -82,7 +96,7 @@ func (s *service) Update(id int, item domain.Property) (domain.Property, error) 
 	if err != nil {
 		return domain.Property{}, err
 	}
-	if !owner.Active || owner.Type != domain.UserTypeHost {
+	if !owner.Active {
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
 	if err := item.Validate(); err != nil {
@@ -125,7 +139,7 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	if err != nil {
 		return domain.Property{}, err
 	}
-	if !owner.Active || owner.Type != domain.UserTypeHost {
+	if !owner.Active {
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
 

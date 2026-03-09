@@ -18,7 +18,7 @@ func (s *service) Create(item domain.User) (domain.User, error) {
 		return domain.User{}, domain.ErrInvalidEntity
 	}
 	if _, err := s.repo.GetByEmail(item.Email); err == nil {
-		return domain.User{}, domain.ErrInvalidEntity
+		return domain.User{}, domain.ErrEmailInUse
 	}
 
 	if err := item.Validate(); err != nil {

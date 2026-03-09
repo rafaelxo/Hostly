@@ -77,7 +77,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     },
     ...options,
   });
-  if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    let message = res.statusText;
+
+    if (errorText) {
+      try {
+        const parsed = JSON.parse(errorText) as { error?: string };
+        if (parsed.error) {
+          message = parsed.error;
+        }
+      } catch {
+        message = errorText;
+      }
+    }
+
+    throw new Error(`Erro ${res.status}: ${message}`);
+  }
 
   if (res.status === 204) {
     return undefined as T;

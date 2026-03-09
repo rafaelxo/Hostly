@@ -12,4 +12,5 @@ type Repository interface {
 
 type UserReader interface {
 	GetByID(id int) (domain.User, error)
+	Update(id int, item domain.User) (domain.User, error)
 }

@@ -90,7 +90,6 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
             }
           : {}),
       });
-      // mostrar mensagem de sucesso e então redirecionar/login
       setSuccess("Conta criada com sucesso. Entrando...");
       setTimeout(async () => {
         await onAuthenticated();

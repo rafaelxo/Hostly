@@ -1,10 +1,10 @@
 package handler
 
 import (
+	"backend/internal/domain"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"backend/internal/domain"
 )
 
 func respondJSON(w http.ResponseWriter, status int, payload any) {
@@ -21,6 +21,8 @@ func respondDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		respondError(w, http.StatusNotFound, err)
+	case errors.Is(err, domain.ErrAlreadyExists), errors.Is(err, domain.ErrEmailInUse):
+		respondError(w, http.StatusConflict, err)
 	case errors.Is(err, domain.ErrInvalidEntity):
 		respondError(w, http.StatusBadRequest, err)
 	default:
