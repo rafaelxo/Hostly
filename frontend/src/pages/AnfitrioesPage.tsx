@@ -26,12 +26,26 @@ const initialForm = {
   ativo: true,
 };
 
-export function AnfitrioesPage() {
+type AnfitrioesPageProps = {
+  title?: string;
+  onlyActive?: boolean;
+  canManage?: boolean;
+};
+
+export function AnfitrioesPage({
+  title = "Usuários",
+  onlyActive = false,
+  canManage = true,
+}: AnfitrioesPageProps) {
   const { data: usuarios, loading, error, refetch } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(initialForm);
+
+  const usuariosFiltrados = (usuarios ?? []).filter((item) =>
+    onlyActive ? item.ativo : true,
+  );
 
   const set = (k: keyof typeof initialForm, v: string | boolean) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -185,24 +199,26 @@ export function AnfitrioesPage() {
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">Usuários</h3>
+            <h3 className="text-base font-semibold text-stone-800">{title}</h3>
             <p className="text-xs text-stone-400">
-              {(usuarios ?? []).length} perfil(is) ativo(s)
+              {usuariosFiltrados.length} perfil(is) na listagem
             </p>
           </div>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-          >
-            <IconPlus /> Novo Usuário
-          </button>
+          {canManage && (
+            <button
+              onClick={startNew}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              <IconPlus /> Novo Usuário
+            </button>
+          )}
         </div>
       </div>
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
       {usuarios && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {usuarios.map((a) => (
+          {usuariosFiltrados.map((a) => (
             <div
               key={a.idUsuario}
               className="bg-white rounded-2xl border border-stone-100 p-5 shadow-sm hover:shadow-md transition-shadow"
@@ -220,20 +236,22 @@ export function AnfitrioesPage() {
               <p className="font-semibold text-stone-800">{a.nome}</p>
               <p className="text-sm text-stone-400 mt-0.5">{a.email}</p>
               <p className="text-xs text-stone-500 mt-1">Perfil: {a.tipo}</p>
-              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">
-                <button
-                  onClick={() => startEdit(a)}
-                  className="flex-1 text-xs font-medium text-stone-500 hover:text-amber-600 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center justify-center gap-1"
-                >
-                  <IconEdit /> Editar
-                </button>
-                <button
-                  onClick={() => handleDelete(a.idUsuario)}
-                  className="flex-1 text-xs font-medium text-stone-500 hover:text-red-500 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
-                >
-                  <IconTrash /> Excluir
-                </button>
-              </div>
+              {canManage && (
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">
+                  <button
+                    onClick={() => startEdit(a)}
+                    className="flex-1 text-xs font-medium text-stone-500 hover:text-amber-600 py-1.5 rounded-lg hover:bg-amber-50 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <IconEdit /> Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(a.idUsuario)}
+                    className="flex-1 text-xs font-medium text-stone-500 hover:text-red-500 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <IconTrash /> Excluir
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

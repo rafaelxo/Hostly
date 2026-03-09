@@ -2,7 +2,6 @@ package property
 
 import (
 	"time"
-
 	"backend/internal/domain"
 )
 
@@ -55,6 +54,23 @@ func (s *service) GetAll() ([]domain.Property, error) {
 	}
 
 	return active, nil
+}
+
+func (s *service) GetByOwnerID(ownerID int) ([]domain.Property, error) {
+	if ownerID <= 0 {
+		return nil, domain.ErrInvalidEntity
+	}
+	all, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	owned := make([]domain.Property, 0)
+	for _, item := range all {
+		if item.UserID == ownerID {
+			owned = append(owned, item)
+		}
+	}
+	return owned, nil
 }
 
 func (s *service) Update(id int, item domain.Property) (domain.Property, error) {

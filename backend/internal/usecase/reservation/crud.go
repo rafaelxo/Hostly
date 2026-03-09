@@ -65,6 +65,62 @@ func (s *service) GetByPropertyID(propertyID int) ([]domain.Reservation, error) 
 	return s.repo.GetByPropertyID(propertyID)
 }
 
+func (s *service) GetByGuestID(guestID int) ([]domain.Reservation, error) {
+	if guestID <= 0 {
+		return nil, domain.ErrInvalidEntity
+	}
+	if _, err := s.guestRepo.GetByID(guestID); err != nil {
+		return nil, err
+	}
+	all, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]domain.Reservation, 0)
+	for _, item := range all {
+		if item.GuestID == guestID {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
+func (s *service) GetByHostID(hostID int) ([]domain.Reservation, error) {
+	if hostID <= 0 {
+		return nil, domain.ErrInvalidEntity
+	}
+	host, err := s.guestRepo.GetByID(hostID)
+	if err != nil {
+		return nil, err
+	}
+	if host.Type != domain.UserTypeHost && host.Type != domain.UserTypeAdmin {
+		return nil, domain.ErrInvalidEntity
+	}
+
+	properties, err := s.propertyRepo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	owned := make(map[int]struct{})
+	for _, p := range properties {
+		if p.UserID == hostID {
+			owned[p.ID] = struct{}{}
+		}
+	}
+
+	all, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]domain.Reservation, 0)
+	for _, item := range all {
+		if _, ok := owned[item.PropertyID]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
 func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, error) {
 	if id <= 0 {
 		return domain.Reservation{}, domain.ErrInvalidEntity

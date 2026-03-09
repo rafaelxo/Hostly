@@ -12,8 +12,15 @@ type UserPatch struct {
 
 func (s *service) Create(item domain.User) (domain.User, error) {
 	if item.Type == "" {
-		item.Type = domain.UserTypeHost
+		item.Type = domain.UserTypeGuest
 	}
+	if item.Password == "" {
+		return domain.User{}, domain.ErrInvalidEntity
+	}
+	if _, err := s.repo.GetByEmail(item.Email); err == nil {
+		return domain.User{}, domain.ErrInvalidEntity
+	}
+
 	if err := item.Validate(); err != nil {
 		return domain.User{}, err
 	}
@@ -25,6 +32,13 @@ func (s *service) GetByID(id int) (domain.User, error) {
 		return domain.User{}, domain.ErrInvalidEntity
 	}
 	return s.repo.GetByID(id)
+}
+
+func (s *service) GetByEmail(email string) (domain.User, error) {
+	if email == "" {
+		return domain.User{}, domain.ErrInvalidEntity
+	}
+	return s.repo.GetByEmail(email)
 }
 
 func (s *service) GetAllHosts() ([]domain.User, error) {
@@ -99,4 +113,25 @@ func (s *service) Delete(id int) error {
 		return domain.ErrInvalidEntity
 	}
 	return s.repo.Delete(id)
+}
+
+func (s *service) SeedAdmin(name string, email string, password string) (domain.User, error) {
+	existing, err := s.repo.GetByEmail(email)
+	if err == nil {
+		return existing, nil
+	}
+
+	admin := domain.User{
+		Name:     name,
+		Email:    email,
+		Password: password,
+		Type:     domain.UserTypeAdmin,
+		Active:   true,
+	}
+
+	if err := admin.Validate(); err != nil {
+		return domain.User{}, err
+	}
+
+	return s.repo.Create(admin)
 }

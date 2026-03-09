@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strings"
 	"backend/internal/domain"
 	useruc "backend/internal/usecase/user"
 )
@@ -28,6 +29,22 @@ func (r *UserFileRepository) Create(item domain.User) (domain.User, error) {
 
 func (r *UserFileRepository) GetByID(id int) (domain.User, error) {
 	return r.store.GetByID(id)
+}
+
+func (r *UserFileRepository) GetByEmail(email string) (domain.User, error) {
+	all, err := r.store.GetAll()
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	normalized := strings.TrimSpace(strings.ToLower(email))
+	for _, item := range all {
+		if strings.ToLower(strings.TrimSpace(item.Email)) == normalized {
+			return item, nil
+		}
+	}
+
+	return domain.User{}, domain.ErrNotFound
 }
 
 func (r *UserFileRepository) GetAll() ([]domain.User, error) {

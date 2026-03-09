@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ErrorMsg,
   Field,
@@ -8,7 +8,7 @@ import {
   inputCls,
 } from "../components/common";
 import { IconEdit, IconPlus, IconTrash } from "../components/icons";
-import { useImoveis, useReservas, useUsuarios } from "../hooks/useData";
+import { useImoveis, useUsuarios } from "../hooks/useData";
 import { reservaService } from "../services/api";
 
 type View = "list" | "new" | "edit";
@@ -38,8 +38,45 @@ const formatPtBrDate = (value: string) => {
   return date ? date.toLocaleDateString("pt-BR") : value;
 };
 
-export function ReservasPage() {
-  const { data: reservas, loading, error, refetch } = useReservas();
+const isReservaAtiva = (reserva: { dataInicio: string; dataFim: string }) => {
+  const startDate = parseLocalDate(reserva.dataInicio);
+  const endDate = parseLocalDate(reserva.dataFim);
+  if (!startDate || !endDate) return false;
+
+  const today = new Date();
+  const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return startDate <= now && endDate >= now;
+};
+
+type ReservasPageProps = {
+  guestId?: number;
+  hostId?: number;
+  fixedGuestId?: number;
+  activeOnly?: boolean;
+  canManage?: boolean;
+  title?: string;
+};
+
+export function ReservasPage({
+  guestId,
+  hostId,
+  fixedGuestId,
+  activeOnly = false,
+  canManage = true,
+  title = "Reservas",
+}: ReservasPageProps) {
+  const [reservas, setReservas] = useState<
+    {
+      idReserva: number;
+      idImovel: number;
+      idHospede: number;
+      dataInicio: string;
+      dataFim: string;
+      valorTotal: number;
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { data: imoveis } = useImoveis();
   const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
@@ -47,12 +84,39 @@ export function ReservasPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
 
+  const refetch = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data =
+        typeof hostId === "number"
+          ? await reservaService.getByAnfitriao(hostId)
+          : typeof guestId === "number"
+            ? await reservaService.getByHospede(guestId)
+            : await reservaService.getAll();
+      setReservas(
+        activeOnly ? data.filter((item) => isReservaAtiva(item)) : data,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refetch();
+  }, [guestId, hostId, activeOnly]);
+
   const set = (k: keyof FormState, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const startNew = () => {
     setEditingId(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      idHospede: fixedGuestId ? String(fixedGuestId) : "",
+    });
     setView("new");
   };
 
@@ -160,6 +224,7 @@ export function ReservasPage() {
                     value={form.idHospede}
                     onChange={(e) => set("idHospede", e.target.value)}
                     required
+                    disabled={Boolean(fixedGuestId)}
                   >
                     <option value="">Selecione um hóspede...</option>
                     {(usuarios ?? []).map((u) => (
@@ -206,18 +271,20 @@ export function ReservasPage() {
             >
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors shadow-sm"
-            >
-              <IconPlus />{" "}
-              {saving
-                ? "Salvando..."
-                : view === "new"
-                  ? "Registrar Reserva"
-                  : "Salvar alterações"}
-            </button>
+            {canManage && (
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 transition-colors shadow-sm"
+              >
+                <IconPlus />{" "}
+                {saving
+                  ? "Salvando..."
+                  : view === "new"
+                    ? "Registrar Reserva"
+                    : "Salvar alterações"}
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -229,17 +296,19 @@ export function ReservasPage() {
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">Reservas</h3>
+            <h3 className="text-base font-semibold text-stone-800">{title}</h3>
             <p className="text-xs text-stone-400">
-              {(reservas ?? []).length} reserva(s) registrada(s)
+              {reservas.length} reserva(s) registrada(s)
             </p>
           </div>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
-          >
-            <IconPlus /> Nova Reserva
-          </button>
+          {canManage && (
+            <button
+              onClick={startNew}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+            >
+              <IconPlus /> Nova Reserva
+            </button>
+          )}
         </div>
       </div>
       {loading && <Spinner />}
@@ -283,20 +352,22 @@ export function ReservasPage() {
                     R$ {r.valorTotal.toLocaleString("pt-BR")}
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => startEdit(r)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.idReserva)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <IconTrash />
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                        >
+                          <IconEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(r.idReserva)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <IconTrash />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
