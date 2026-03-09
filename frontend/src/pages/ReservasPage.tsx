@@ -39,13 +39,12 @@ const formatPtBrDate = (value: string) => {
 };
 
 const isReservaAtiva = (reserva: { dataInicio: string; dataFim: string }) => {
-  const startDate = parseLocalDate(reserva.dataInicio);
   const endDate = parseLocalDate(reserva.dataFim);
-  if (!startDate || !endDate) return false;
+  if (!endDate) return false;
 
   const today = new Date();
   const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return startDate <= now && endDate >= now;
+  return endDate >= now;
 };
 
 type ReservasPageProps = {

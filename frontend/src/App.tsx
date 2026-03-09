@@ -424,6 +424,16 @@ export default function App() {
 
       setShowAddPropertyModal(false);
       setNovoImovelForm(initialNovoImovelForm);
+
+      try {
+        const me = await authService.me();
+        setUser(me);
+        if (me.tipo === "ANFITRIAO") {
+          setPage("meusImoveis");
+        }
+      } catch {
+        //
+      }
     } catch (e) {
       setAddPropertyError(
         e instanceof Error ? e.message : "Não foi possível cadastrar o imóvel.",

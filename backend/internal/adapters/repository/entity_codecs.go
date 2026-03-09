@@ -4,8 +4,42 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"backend/internal/domain"
 )
+
+const (
+	standardMagic = "HST1"
+	entityTypeProperty    = 1
+	entityTypeUser        = 2
+	entityTypeReservation = 3
+	propertyFieldIDID          = 1
+	propertyFieldIDUserID      = 2
+	propertyFieldIDTitle       = 3
+	propertyFieldIDDescription = 4
+	propertyFieldIDCity        = 5
+	propertyFieldIDDailyRate   = 6
+	propertyFieldIDCreatedAt   = 7
+	propertyFieldIDPhotos      = 8
+	propertyFieldIDActive      = 9
+	userFieldIDID       = 1
+	userFieldIDName     = 2
+	userFieldIDEmail    = 3
+	userFieldIDPassword = 4
+	userFieldIDType     = 5
+	userFieldIDActive   = 6
+	reservationFieldIDID         = 1
+	reservationFieldIDPropertyID = 2
+	reservationFieldIDGuestID    = 3
+	reservationFieldIDStartDate  = 4
+	reservationFieldIDEndDate    = 5
+	reservationFieldIDTotalValue = 6
+)
+
+type recordField struct {
+	id   uint8
+	data []byte
+}
 
 func propertyPayloadCodec() payloadCodec[domain.Property] {
 	return payloadCodec[domain.Property]{
@@ -29,47 +63,133 @@ func reservationPayloadCodec() payloadCodec[domain.Reservation] {
 }
 
 func encodeProperty(item domain.Property) ([]byte, error) {
-	buf := &bytes.Buffer{}
+	fields := make([]recordField, 0, 9)
 
-	if err := writeInt32(buf, int32(item.ID)); err != nil {
+	idData, err := encodeInt32Data(int32(item.ID))
+	if err != nil {
 		return nil, err
 	}
-	if err := writeInt32(buf, int32(item.UserID)); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.Title); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.Description); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.City); err != nil {
-		return nil, err
-	}
-	if err := writeFloat64(buf, item.DailyRate); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.CreatedAt); err != nil {
-		return nil, err
-	}
+	fields = append(fields, recordField{id: propertyFieldIDID, data: idData})
 
-	if err := writeUint32(buf, uint32(len(item.Photos))); err != nil {
+	userIDData, err := encodeInt32Data(int32(item.UserID))
+	if err != nil {
 		return nil, err
 	}
-	for _, photo := range item.Photos {
-		if err := writeString(buf, photo); err != nil {
-			return nil, err
-		}
-	}
+	fields = append(fields, recordField{id: propertyFieldIDUserID, data: userIDData})
 
-	if err := writeBool(buf, item.Active); err != nil {
+	fields = append(fields, recordField{id: propertyFieldIDTitle, data: []byte(item.Title)})
+	fields = append(fields, recordField{id: propertyFieldIDDescription, data: []byte(item.Description)})
+	fields = append(fields, recordField{id: propertyFieldIDCity, data: []byte(item.City)})
+
+	dailyRateData, err := encodeFloat64Data(item.DailyRate)
+	if err != nil {
 		return nil, err
 	}
+	fields = append(fields, recordField{id: propertyFieldIDDailyRate, data: dailyRateData})
 
-	return buf.Bytes(), nil
+	fields = append(fields, recordField{id: propertyFieldIDCreatedAt, data: []byte(item.CreatedAt)})
+
+	photosData, err := encodeStringListData(item.Photos)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDPhotos, data: photosData})
+
+	activeData, err := encodeBoolData(item.Active)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDActive, data: activeData})
+
+	return encodeStandardPayload(entityTypeProperty, fields)
 }
 
 func decodeProperty(payload []byte) (domain.Property, error) {
+	fields, err := decodeStandardPayload(payload, entityTypeProperty)
+	if err == nil {
+		return decodePropertyFromStandard(fields)
+	}
+	return decodePropertyLegacy(payload)
+}
+
+func decodePropertyFromStandard(fields map[uint8][]byte) (domain.Property, error) {
+	var item domain.Property
+
+	idData, err := requiredField(fields, propertyFieldIDID)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	id, err := decodeInt32Data(idData)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.ID = int(id)
+
+	userIDData, err := requiredField(fields, propertyFieldIDUserID)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	userID, err := decodeInt32Data(userIDData)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.UserID = int(userID)
+
+	titleData, err := requiredField(fields, propertyFieldIDTitle)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.Title = string(titleData)
+
+	descriptionData, err := requiredField(fields, propertyFieldIDDescription)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.Description = string(descriptionData)
+
+	cityData, err := requiredField(fields, propertyFieldIDCity)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.City = string(cityData)
+
+	dailyRateData, err := requiredField(fields, propertyFieldIDDailyRate)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.DailyRate, err = decodeFloat64Data(dailyRateData)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	createdAtData, err := requiredField(fields, propertyFieldIDCreatedAt)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.CreatedAt = string(createdAtData)
+
+	photosData, err := requiredField(fields, propertyFieldIDPhotos)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.Photos, err = decodeStringListData(photosData)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	activeData, err := requiredField(fields, propertyFieldIDActive)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	item.Active, err = decodeBoolData(activeData)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	return item, nil
+}
+
+func decodePropertyLegacy(payload []byte) (domain.Property, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.Property
 
@@ -128,31 +248,85 @@ func decodeProperty(payload []byte) (domain.Property, error) {
 }
 
 func encodeUser(item domain.User) ([]byte, error) {
-	buf := &bytes.Buffer{}
+	fields := make([]recordField, 0, 6)
 
-	if err := writeInt32(buf, int32(item.ID)); err != nil {
+	idData, err := encodeInt32Data(int32(item.ID))
+	if err != nil {
 		return nil, err
 	}
-	if err := writeString(buf, item.Name); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.Email); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.Password); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, string(item.Type)); err != nil {
-		return nil, err
-	}
-	if err := writeBool(buf, item.Active); err != nil {
-		return nil, err
-	}
+	fields = append(fields, recordField{id: userFieldIDID, data: idData})
+	fields = append(fields, recordField{id: userFieldIDName, data: []byte(item.Name)})
+	fields = append(fields, recordField{id: userFieldIDEmail, data: []byte(item.Email)})
+	fields = append(fields, recordField{id: userFieldIDPassword, data: []byte(item.Password)})
+	fields = append(fields, recordField{id: userFieldIDType, data: []byte(string(item.Type))})
 
-	return buf.Bytes(), nil
+	activeData, err := encodeBoolData(item.Active)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: userFieldIDActive, data: activeData})
+
+	return encodeStandardPayload(entityTypeUser, fields)
 }
 
 func decodeUser(payload []byte) (domain.User, error) {
+	fields, err := decodeStandardPayload(payload, entityTypeUser)
+	if err == nil {
+		return decodeUserFromStandard(fields)
+	}
+	return decodeUserLegacy(payload)
+}
+
+func decodeUserFromStandard(fields map[uint8][]byte) (domain.User, error) {
+	var item domain.User
+
+	idData, err := requiredField(fields, userFieldIDID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	id, err := decodeInt32Data(idData)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.ID = int(id)
+
+	nameData, err := requiredField(fields, userFieldIDName)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.Name = string(nameData)
+
+	emailData, err := requiredField(fields, userFieldIDEmail)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.Email = string(emailData)
+
+	passwordData, err := requiredField(fields, userFieldIDPassword)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.Password = string(passwordData)
+
+	typeData, err := requiredField(fields, userFieldIDType)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.Type = domain.UserType(string(typeData))
+
+	activeData, err := requiredField(fields, userFieldIDActive)
+	if err != nil {
+		return domain.User{}, err
+	}
+	item.Active, err = decodeBoolData(activeData)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	return item, nil
+}
+
+func decodeUserLegacy(payload []byte) (domain.User, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.User
 
@@ -188,31 +362,104 @@ func decodeUser(payload []byte) (domain.User, error) {
 }
 
 func encodeReservation(item domain.Reservation) ([]byte, error) {
-	buf := &bytes.Buffer{}
+	fields := make([]recordField, 0, 6)
 
-	if err := writeInt32(buf, int32(item.ID)); err != nil {
+	idData, err := encodeInt32Data(int32(item.ID))
+	if err != nil {
 		return nil, err
 	}
-	if err := writeInt32(buf, int32(item.PropertyID)); err != nil {
-		return nil, err
-	}
-	if err := writeInt32(buf, int32(item.GuestID)); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.StartDate); err != nil {
-		return nil, err
-	}
-	if err := writeString(buf, item.EndDate); err != nil {
-		return nil, err
-	}
-	if err := writeFloat64(buf, item.TotalValue); err != nil {
-		return nil, err
-	}
+	fields = append(fields, recordField{id: reservationFieldIDID, data: idData})
 
-	return buf.Bytes(), nil
+	propertyIDData, err := encodeInt32Data(int32(item.PropertyID))
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: reservationFieldIDPropertyID, data: propertyIDData})
+
+	guestIDData, err := encodeInt32Data(int32(item.GuestID))
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: reservationFieldIDGuestID, data: guestIDData})
+
+	fields = append(fields, recordField{id: reservationFieldIDStartDate, data: []byte(item.StartDate)})
+	fields = append(fields, recordField{id: reservationFieldIDEndDate, data: []byte(item.EndDate)})
+
+	totalValueData, err := encodeFloat64Data(item.TotalValue)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: reservationFieldIDTotalValue, data: totalValueData})
+
+	return encodeStandardPayload(entityTypeReservation, fields)
 }
 
 func decodeReservation(payload []byte) (domain.Reservation, error) {
+	fields, err := decodeStandardPayload(payload, entityTypeReservation)
+	if err == nil {
+		return decodeReservationFromStandard(fields)
+	}
+	return decodeReservationLegacy(payload)
+}
+
+func decodeReservationFromStandard(fields map[uint8][]byte) (domain.Reservation, error) {
+	var item domain.Reservation
+
+	idData, err := requiredField(fields, reservationFieldIDID)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	id, err := decodeInt32Data(idData)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.ID = int(id)
+
+	propertyIDData, err := requiredField(fields, reservationFieldIDPropertyID)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	propertyID, err := decodeInt32Data(propertyIDData)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.PropertyID = int(propertyID)
+
+	guestIDData, err := requiredField(fields, reservationFieldIDGuestID)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	guestID, err := decodeInt32Data(guestIDData)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.GuestID = int(guestID)
+
+	startDateData, err := requiredField(fields, reservationFieldIDStartDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.StartDate = string(startDateData)
+
+	endDateData, err := requiredField(fields, reservationFieldIDEndDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.EndDate = string(endDateData)
+
+	totalValueData, err := requiredField(fields, reservationFieldIDTotalValue)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	item.TotalValue, err = decodeFloat64Data(totalValueData)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	return item, nil
+}
+
+func decodeReservationLegacy(payload []byte) (domain.Reservation, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.Reservation
 
@@ -248,6 +495,167 @@ func decodeReservation(payload []byte) (domain.Reservation, error) {
 	}
 
 	return item, nil
+}
+
+func encodeStandardPayload(entityType uint8, fields []recordField) ([]byte, error) {
+	if len(fields) > int(^uint16(0)) {
+		return nil, fmt.Errorf("quantidade de campos excede limite")
+	}
+
+	buf := &bytes.Buffer{}
+	if _, err := buf.WriteString(standardMagic); err != nil {
+		return nil, err
+	}
+	if err := buf.WriteByte(entityType); err != nil {
+		return nil, err
+	}
+	if err := writeUint16(buf, uint16(len(fields))); err != nil {
+		return nil, err
+	}
+
+	for _, field := range fields {
+		if err := buf.WriteByte(field.id); err != nil {
+			return nil, err
+		}
+		if err := writeUint32(buf, uint32(len(field.data))); err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(field.data); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeStandardPayload(payload []byte, expectedEntityType uint8) (map[uint8][]byte, error) {
+	reader := bytes.NewReader(payload)
+
+	magic := make([]byte, len(standardMagic))
+	if _, err := io.ReadFull(reader, magic); err != nil {
+		return nil, err
+	}
+	if string(magic) != standardMagic {
+		return nil, fmt.Errorf("payload em formato legado")
+	}
+
+	entityType, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if entityType != expectedEntityType {
+		return nil, fmt.Errorf("tipo de entidade invalido")
+	}
+
+	fieldCount, err := readUint16(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := make(map[uint8][]byte, fieldCount)
+	for i := uint16(0); i < fieldCount; i++ {
+		fieldID, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+
+		size, err := readUint32(reader)
+		if err != nil {
+			return nil, err
+		}
+		if uint64(size) > uint64(reader.Len()) {
+			return nil, fmt.Errorf("tamanho de campo invalido")
+		}
+
+		data := make([]byte, size)
+		if _, err := io.ReadFull(reader, data); err != nil {
+			return nil, err
+		}
+		fields[fieldID] = data
+	}
+
+	return fields, nil
+}
+
+func requiredField(fields map[uint8][]byte, id uint8) ([]byte, error) {
+	value, ok := fields[id]
+	if !ok {
+		return nil, fmt.Errorf("campo %d ausente", id)
+	}
+	return value, nil
+}
+
+func encodeStringListData(values []string) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeUint32(buf, uint32(len(values))); err != nil {
+		return nil, err
+	}
+
+	for _, value := range values {
+		if err := writeString(buf, value); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeStringListData(data []byte) ([]string, error) {
+	reader := bytes.NewReader(data)
+	count, err := readUint32(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]string, 0, count)
+	for i := uint32(0); i < count; i++ {
+		value, err := readString(reader)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+
+	return values, nil
+}
+
+func encodeBoolData(value bool) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeBool(buf, value); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeBoolData(data []byte) (bool, error) {
+	reader := bytes.NewReader(data)
+	return readBool(reader)
+}
+
+func encodeInt32Data(value int32) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeInt32(buf, value); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeInt32Data(data []byte) (int32, error) {
+	reader := bytes.NewReader(data)
+	return readInt32(reader)
+}
+
+func encodeFloat64Data(value float64) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeFloat64(buf, value); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeFloat64Data(data []byte) (float64, error) {
+	reader := bytes.NewReader(data)
+	return readFloat64(reader)
 }
 
 func writeString(buf *bytes.Buffer, value string) error {
@@ -308,8 +716,20 @@ func writeUint32(buf *bytes.Buffer, value uint32) error {
 	return binary.Write(buf, binary.LittleEndian, value)
 }
 
+func writeUint16(buf *bytes.Buffer, value uint16) error {
+	return binary.Write(buf, binary.LittleEndian, value)
+}
+
 func readUint32(reader *bytes.Reader) (uint32, error) {
 	var value uint32
+	if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+		return 0, err
+	}
+	return value, nil
+}
+
+func readUint16(reader *bytes.Reader) (uint16, error) {
+	var value uint16
 	if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
 		return 0, err
 	}
