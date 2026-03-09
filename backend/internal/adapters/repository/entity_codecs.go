@@ -5,17 +5,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
 	"backend/internal/domain"
 )
 
 const (
 	standardMagic = "HST1"
-
 	entityTypeProperty    = 1
 	entityTypeUser        = 2
 	entityTypeReservation = 3
-
 	propertyFieldIDID          = 1
 	propertyFieldIDUserID      = 2
 	propertyFieldIDTitle       = 3
@@ -25,14 +22,12 @@ const (
 	propertyFieldIDCreatedAt   = 7
 	propertyFieldIDPhotos      = 8
 	propertyFieldIDActive      = 9
-
 	userFieldIDID       = 1
 	userFieldIDName     = 2
 	userFieldIDEmail    = 3
 	userFieldIDPassword = 4
 	userFieldIDType     = 5
 	userFieldIDActive   = 6
-
 	reservationFieldIDID         = 1
 	reservationFieldIDPropertyID = 2
 	reservationFieldIDGuestID    = 3
@@ -114,7 +109,6 @@ func decodeProperty(payload []byte) (domain.Property, error) {
 	if err == nil {
 		return decodePropertyFromStandard(fields)
 	}
-
 	return decodePropertyLegacy(payload)
 }
 
@@ -280,7 +274,6 @@ func decodeUser(payload []byte) (domain.User, error) {
 	if err == nil {
 		return decodeUserFromStandard(fields)
 	}
-
 	return decodeUserLegacy(payload)
 }
 
@@ -406,7 +399,6 @@ func decodeReservation(payload []byte) (domain.Reservation, error) {
 	if err == nil {
 		return decodeReservationFromStandard(fields)
 	}
-
 	return decodeReservationLegacy(payload)
 }
 
@@ -598,11 +590,13 @@ func encodeStringListData(values []string) ([]byte, error) {
 	if err := writeUint32(buf, uint32(len(values))); err != nil {
 		return nil, err
 	}
+
 	for _, value := range values {
 		if err := writeString(buf, value); err != nil {
 			return nil, err
 		}
 	}
+
 	return buf.Bytes(), nil
 }
 
