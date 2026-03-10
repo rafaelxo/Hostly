@@ -1,12 +1,12 @@
 package web
 
 import (
-	"net/http"
 	"backend/internal/adapters/web/handler"
 	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
+	"net/http"
 )
 
 type Dependencies struct {
@@ -49,6 +49,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /reservas", reservs.Create)
 	mux.HandleFunc("GET /reservas/{id}", reservs.GetByID)
 	mux.HandleFunc("PUT /reservas/{id}", reservs.Update)
+	mux.HandleFunc("PUT /reservas/{id}/confirmar", reservs.Confirm)
 	mux.HandleFunc("DELETE /reservas/{id}", reservs.Delete)
 
 	mux.HandleFunc("POST /auth/register", auth.Register)

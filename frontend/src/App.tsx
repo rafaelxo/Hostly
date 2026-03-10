@@ -16,6 +16,7 @@ import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ImoveisPage } from "./pages/ImoveisPage";
+import { ImovelDetailPage } from "./pages/ImovelDetailPage";
 import { ReceitaPage } from "./pages/ReceitaPage";
 import { ReservasPage } from "./pages/ReservasPage";
 import {
@@ -92,21 +93,44 @@ const PAGE_TITLES: Record<PageId, string> = {
 type NovoImovelForm = {
   titulo: string;
   descricao: string;
+  rua: string;
+  numero: string;
+  bairro: string;
   cidade: string;
+  estado: string;
+  cep: string;
+  complemento: string;
   valorDiaria: string;
+  comodidades: string;
   fotos: string;
 };
 
 const initialNovoImovelForm: NovoImovelForm = {
   titulo: "",
   descricao: "",
+  rua: "",
+  numero: "",
+  bairro: "",
   cidade: "",
+  estado: "",
+  cep: "",
+  complemento: "",
   valorDiaria: "",
+  comodidades: "",
   fotos: "",
 };
 
 const inputCls =
   "w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 placeholder-stone-400 outline-none focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 transition-all";
+
+const isHttpURL = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 
 const AddPropertyModal = ({
   open,
@@ -159,6 +183,41 @@ const AddPropertyModal = ({
             />
             <input
               className={inputCls}
+              placeholder="Estado (UF)"
+              value={form.estado}
+              onChange={(e) => onChange("estado", e.target.value.toUpperCase())}
+              required
+            />
+            <input
+              className={inputCls}
+              placeholder="Rua"
+              value={form.rua}
+              onChange={(e) => onChange("rua", e.target.value)}
+              required
+            />
+            <input
+              className={inputCls}
+              placeholder="Número"
+              value={form.numero}
+              onChange={(e) => onChange("numero", e.target.value)}
+              required
+            />
+            <input
+              className={inputCls}
+              placeholder="Bairro"
+              value={form.bairro}
+              onChange={(e) => onChange("bairro", e.target.value)}
+              required
+            />
+            <input
+              className={inputCls}
+              placeholder="CEP"
+              value={form.cep}
+              onChange={(e) => onChange("cep", e.target.value)}
+              required
+            />
+            <input
+              className={inputCls}
               placeholder="Valor da diária"
               type="number"
               min="1"
@@ -166,6 +225,14 @@ const AddPropertyModal = ({
               onChange={(e) => onChange("valorDiaria", e.target.value)}
               required
             />
+            <div className="md:col-span-2">
+              <input
+                className={inputCls}
+                placeholder="Complemento"
+                value={form.complemento}
+                onChange={(e) => onChange("complemento", e.target.value)}
+              />
+            </div>
             <div className="md:col-span-2">
               <textarea
                 className={`${inputCls} resize-none`}
@@ -182,6 +249,14 @@ const AddPropertyModal = ({
                 placeholder="Fotos (URLs separadas por vírgula)"
                 value={form.fotos}
                 onChange={(e) => onChange("fotos", e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <input
+                className={inputCls}
+                placeholder="Comodidades (separadas por vírgula)"
+                value={form.comodidades}
+                onChange={(e) => onChange("comodidades", e.target.value)}
               />
             </div>
           </div>
@@ -361,6 +436,7 @@ export default function App() {
   const [novoImovelForm, setNovoImovelForm] = useState<NovoImovelForm>(
     initialNovoImovelForm,
   );
+  const [viewingImovelId, setViewingImovelId] = useState<number | null>(null);
 
   const navItems = useMemo(() => (user ? getNav(user) : []), [user]);
 
@@ -398,12 +474,40 @@ export default function App() {
   const handleLogout = () => {
     authService.logout();
     setUser(null);
+    setViewingImovelId(null);
     setPage("dashboard");
+  };
+
+  const handleNavigate = (nextPage: PageId) => {
+    setViewingImovelId(null);
+    setPage(nextPage);
   };
 
   const handleCreateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    const photos = novoImovelForm.fotos
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (novoImovelForm.titulo.trim().length < 4) {
+      setAddPropertyError("O título precisa ter pelo menos 4 caracteres.");
+      return;
+    }
+
+    if (photos.length === 0) {
+      setAddPropertyError("Informe pelo menos 1 URL de foto (http/https).");
+      return;
+    }
+
+    if (photos.some((photo) => !isHttpURL(photo))) {
+      setAddPropertyError(
+        "Todas as fotos precisam ser URLs válidas com http/https.",
+      );
+      return;
+    }
 
     setAddPropertyLoading(true);
     setAddPropertyError(null);
@@ -412,13 +516,24 @@ export default function App() {
         idUsuario: user.idUsuario,
         titulo: novoImovelForm.titulo,
         descricao: novoImovelForm.descricao,
+        endereco: {
+          rua: novoImovelForm.rua,
+          numero: novoImovelForm.numero,
+          bairro: novoImovelForm.bairro,
+          cidade: novoImovelForm.cidade,
+          estado: novoImovelForm.estado,
+          cep: novoImovelForm.cep,
+          complemento: novoImovelForm.complemento,
+        },
+        comodidades: novoImovelForm.comodidades
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((nome) => ({ nome })),
         cidade: novoImovelForm.cidade,
         valorDiaria: Number(novoImovelForm.valorDiaria),
         dataCadastro: new Date().toISOString().slice(0, 10),
-        fotos: novoImovelForm.fotos
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
+        fotos: photos,
         ativo: true,
       });
 
@@ -448,9 +563,19 @@ export default function App() {
   const renderPage = () => {
     if (!user) return null;
 
+    if (viewingImovelId !== null) {
+      return (
+        <ImovelDetailPage
+          imovelId={viewingImovelId}
+          onBack={() => setViewingImovelId(null)}
+          canManage={user.tipo === "ANFITRIAO" || user.tipo === "ADMIN"}
+        />
+      );
+    }
+
     switch (page) {
       case "dashboard":
-        return <DashboardPage />;
+        return <DashboardPage onViewDetail={(id) => setViewingImovelId(id)} />;
       case "minhasReservas":
         return (
           <ReservasPage
@@ -466,6 +591,7 @@ export default function App() {
             ownerId={user.idUsuario}
             canManage={user.tipo === "ANFITRIAO"}
             title="Meus Imóveis"
+            onViewDetail={(id) => setViewingImovelId(id)}
           />
         );
       case "reservasRecebidas":
@@ -511,7 +637,7 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50">
       <Sidebar
         current={page}
-        onNavigate={setPage}
+        onNavigate={handleNavigate}
         collapsed={collapsed}
         onToggle={() => setCollapsed((v) => !v)}
         items={navItems}

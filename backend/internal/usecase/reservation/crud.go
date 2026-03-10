@@ -2,18 +2,26 @@ package reservation
 
 import (
 	"backend/internal/domain"
+	paymentuc "backend/internal/usecase/payment"
 	"math"
 	"time"
 )
 
 type ReservationUpdate struct {
-	PropertyID *int
-	GuestID    *int
-	StartDate  *string
-	EndDate    *string
+	PropertyID    *int
+	GuestID       *int
+	StartDate     *string
+	EndDate       *string
+	PaymentMethod *domain.PaymentMethod
+	Status        *domain.ReservationStatus
+}
+
+type ConfirmReservationInput struct {
+	PaymentMethod domain.PaymentMethod
 }
 
 func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
+	item.SetDefaults()
 	if err := item.Validate(); err != nil {
 		return domain.Reservation{}, err
 	}
@@ -37,6 +45,14 @@ func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 	totalValue, err := calculateTotalValue(property.DailyRate, item.StartDate, item.EndDate)
 	if err != nil {
 		return domain.Reservation{}, err
+	}
+
+	hasOverlap, err := s.hasOverlap(0, item.PropertyID, item.StartDate, item.EndDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if hasOverlap {
+		return domain.Reservation{}, domain.ErrAlreadyExists
 	}
 
 	item.TotalValue = totalValue
@@ -141,6 +157,13 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 	if item.EndDate != nil {
 		existing.EndDate = *item.EndDate
 	}
+	if item.PaymentMethod != nil {
+		existing.PaymentMethod = *item.PaymentMethod
+	}
+	if item.Status != nil {
+		existing.Status = *item.Status
+	}
+	existing.SetDefaults()
 	if err := existing.Validate(); err != nil {
 		return domain.Reservation{}, err
 	}
@@ -166,9 +189,67 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 		return domain.Reservation{}, err
 	}
 
+	hasOverlap, err := s.hasOverlap(id, existing.PropertyID, existing.StartDate, existing.EndDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if hasOverlap {
+		return domain.Reservation{}, domain.ErrAlreadyExists
+	}
+
 	existing.TotalValue = totalValue
 
 	return s.repo.Update(id, existing)
+}
+
+func (s *service) Confirm(id int, input ConfirmReservationInput) (domain.Reservation, error) {
+	if id <= 0 {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
+	item, err := s.repo.GetByID(id)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	if item.Status == domain.ReservationStatusCancelled {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
+	if s.paymentGate == nil {
+		return domain.Reservation{}, domain.ErrInvalidEntity
+	}
+
+	payment, err := s.paymentGate.Authorize(paymentuc.AuthorizationInput{
+		ReservationID: item.ID,
+		Amount:        item.TotalValue,
+		Method:        input.PaymentMethod,
+	})
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	item.PaymentMethod = input.PaymentMethod
+	item.PaymentStatus = payment.Status
+	if payment.Status != domain.PaymentStatusApproved {
+		item.Status = domain.ReservationStatusPending
+		item.ConfirmedAt = ""
+		item.SetDefaults()
+		if err := item.Validate(); err != nil {
+			return domain.Reservation{}, err
+		}
+		return s.repo.Update(id, item)
+	}
+
+	item.Status = domain.ReservationStatusConfirmed
+	item.ConfirmedAt = payment.ApprovedAt
+	item.SetDefaults()
+
+	if err := item.Validate(); err != nil {
+		return domain.Reservation{}, err
+	}
+
+	return s.repo.Update(id, item)
 }
 
 func (s *service) Delete(id int) error {
@@ -195,4 +276,48 @@ func calculateTotalValue(dailyRate float64, startDate string, endDate string) (f
 	}
 
 	return nights * dailyRate, nil
+}
+
+func (s *service) hasOverlap(excludeID int, propertyID int, startDate string, endDate string) (bool, error) {
+	current, err := s.repo.GetByPropertyID(propertyID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, item := range current {
+		if item.ID == excludeID || item.Status == domain.ReservationStatusCancelled {
+			continue
+		}
+
+		overlap, err := datesOverlap(startDate, endDate, item.StartDate, item.EndDate)
+		if err != nil {
+			return false, err
+		}
+		if overlap {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func datesOverlap(startA string, endA string, startB string, endB string) (bool, error) {
+	parsedStartA, err := time.Parse("2006-01-02", startA)
+	if err != nil {
+		return false, domain.ErrInvalidEntity
+	}
+	parsedEndA, err := time.Parse("2006-01-02", endA)
+	if err != nil {
+		return false, domain.ErrInvalidEntity
+	}
+	parsedStartB, err := time.Parse("2006-01-02", startB)
+	if err != nil {
+		return false, domain.ErrInvalidEntity
+	}
+	parsedEndB, err := time.Parse("2006-01-02", endB)
+	if err != nil {
+		return false, domain.ErrInvalidEntity
+	}
+
+	return parsedStartA.Before(parsedEndB) && parsedEndA.After(parsedStartB), nil
 }

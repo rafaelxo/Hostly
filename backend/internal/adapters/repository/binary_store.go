@@ -1,17 +1,19 @@
 package repository
 
 import (
+	"backend/internal/domain"
 	"encoding/binary"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
-	"backend/internal/domain"
 )
 
 const (
-	fileHeaderSize = 8
-	recordMetaSize = 5
+	fileVersion    = uint8(2)
+	fileHeaderSize = 9
+	recordMetaSize = 9
 )
 
 type fileHeader struct {
@@ -72,10 +74,82 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	}
 
 	if info.Size() >= fileHeaderSize {
-		return nil
+		vbuf := make([]byte, 1)
+		if _, err := io.ReadFull(file, vbuf); err == nil && vbuf[0] == fileVersion {
+			return nil
+		}
+		log.Printf("aviso: %s em formato incompativel, resetando para versao %d", s.path, fileVersion)
+		if err := file.Truncate(0); err != nil {
+			return err
+		}
+	} else if info.Size() > 0 {
+		log.Printf("aviso: %s com cabecalho incompleto, resetando", s.path)
+		if err := file.Truncate(0); err != nil {
+			return err
+		}
 	}
 
 	return writeHeader(file, fileHeader{})
+}
+
+func (s *binaryEntityStore[T]) nextID() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	file, err := os.OpenFile(s.path, os.O_RDWR, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	header, err := readHeader(file)
+	if err != nil {
+		return 0, err
+	}
+
+	header.LastID++
+	if err := writeHeader(file, header); err != nil {
+		return 0, err
+	}
+
+	return int(header.LastID), nil
+}
+
+func (s *binaryEntityStore[T]) createWithID(item T) (T, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	file, err := os.OpenFile(s.path, os.O_RDWR, 0o644)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer file.Close()
+
+	header, err := readHeader(file)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+
+	payload, err := s.codec.encode(item)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+
+	if err := appendRecord(file, false, s.getID(item), payload); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	header.Count++
+	if err := writeHeader(file, header); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	return item, nil
 }
 
 func (s *binaryEntityStore[T]) Create(item T) (T, error) {
@@ -104,7 +178,7 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 		return zero, err
 	}
 
-	if err := appendRecord(file, false, payload); err != nil {
+	if err := appendRecord(file, false, int(header.LastID), payload); err != nil {
 		var zero T
 		return zero, err
 	}
@@ -201,7 +275,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		var zero T
 		return zero, err
 	}
-	if err := appendRecord(file, false, payload); err != nil {
+	if err := appendRecord(file, false, id, payload); err != nil {
 		var zero T
 		return zero, err
 	}
@@ -256,8 +330,8 @@ func readHeader(file *os.File) (fileHeader, error) {
 	}
 
 	return fileHeader{
-		LastID: int32(binary.LittleEndian.Uint32(buf[0:4])),
-		Count:  int32(binary.LittleEndian.Uint32(buf[4:8])),
+		LastID: int32(binary.LittleEndian.Uint32(buf[1:5])),
+		Count:  int32(binary.LittleEndian.Uint32(buf[5:9])),
 	}, nil
 }
 
@@ -267,14 +341,15 @@ func writeHeader(file *os.File, h fileHeader) error {
 	}
 
 	buf := make([]byte, fileHeaderSize)
-	binary.LittleEndian.PutUint32(buf[0:4], uint32(h.LastID))
-	binary.LittleEndian.PutUint32(buf[4:8], uint32(h.Count))
+	buf[0] = fileVersion
+	binary.LittleEndian.PutUint32(buf[1:5], uint32(h.LastID))
+	binary.LittleEndian.PutUint32(buf[5:9], uint32(h.Count))
 
 	_, err := file.Write(buf)
 	return err
 }
 
-func appendRecord(file *os.File, deleted bool, payload []byte) error {
+func appendRecord(file *os.File, deleted bool, id int, payload []byte) error {
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
 		return err
 	}
@@ -284,13 +359,12 @@ func appendRecord(file *os.File, deleted bool, payload []byte) error {
 		tomb = 1
 	}
 
-	if _, err := file.Write([]byte{tomb}); err != nil {
-		return err
-	}
+	headerBuf := make([]byte, recordMetaSize)
+	headerBuf[0] = tomb
+	binary.LittleEndian.PutUint32(headerBuf[1:5], uint32(id))
+	binary.LittleEndian.PutUint32(headerBuf[5:9], uint32(len(payload)))
 
-	sizeBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(sizeBuf, uint32(len(payload)))
-	if _, err := file.Write(sizeBuf); err != nil {
+	if _, err := file.Write(headerBuf); err != nil {
 		return err
 	}
 
@@ -323,7 +397,7 @@ func scanActiveRecords[T any](file *os.File, codec payloadCodec[T]) ([]T, error)
 		}
 
 		deleted := headerBuf[0] == 1
-		size := binary.LittleEndian.Uint32(headerBuf[1:5])
+		size := binary.LittleEndian.Uint32(headerBuf[5:9])
 
 		payload := make([]byte, size)
 		if _, err := io.ReadFull(file, payload); err != nil {
@@ -336,7 +410,8 @@ func scanActiveRecords[T any](file *os.File, codec payloadCodec[T]) ([]T, error)
 
 		item, err := codec.decode(payload)
 		if err != nil {
-			return nil, err
+			log.Printf("aviso: registro corrompido ignorado: %v", err)
+			continue
 		}
 		items = append(items, item)
 	}
@@ -374,16 +449,21 @@ func findRecordByID[T any](
 		}
 
 		deleted := headerBuf[0] == 1
-		size := binary.LittleEndian.Uint32(headerBuf[1:5])
+		recordID := int(binary.LittleEndian.Uint32(headerBuf[1:5]))
+		size := binary.LittleEndian.Uint32(headerBuf[5:9])
+
+		if deleted || recordID != id {
+			if _, err := file.Seek(int64(size), io.SeekCurrent); err != nil {
+				var zero T
+				return recordMeta{}, zero, err
+			}
+			continue
+		}
 
 		payload := make([]byte, size)
 		if _, err := io.ReadFull(file, payload); err != nil {
 			var zero T
 			return recordMeta{}, zero, err
-		}
-
-		if deleted {
-			continue
 		}
 
 		item, err := codec.decode(payload)
@@ -392,8 +472,6 @@ func findRecordByID[T any](
 			return recordMeta{}, zero, err
 		}
 
-		if getID(item) == id {
-			return recordMeta{Offset: offset, Size: size}, item, nil
-		}
+		return recordMeta{Offset: offset, Size: size}, item, nil
 	}
 }

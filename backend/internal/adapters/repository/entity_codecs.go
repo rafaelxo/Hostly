@@ -1,39 +1,46 @@
 package repository
 
 import (
+	"backend/internal/domain"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
-	"backend/internal/domain"
 )
 
 const (
-	standardMagic = "HST1"
-	entityTypeProperty    = 1
-	entityTypeUser        = 2
-	entityTypeReservation = 3
-	propertyFieldIDID          = 1
-	propertyFieldIDUserID      = 2
-	propertyFieldIDTitle       = 3
-	propertyFieldIDDescription = 4
-	propertyFieldIDCity        = 5
-	propertyFieldIDDailyRate   = 6
-	propertyFieldIDCreatedAt   = 7
-	propertyFieldIDPhotos      = 8
-	propertyFieldIDActive      = 9
-	userFieldIDID       = 1
-	userFieldIDName     = 2
-	userFieldIDEmail    = 3
-	userFieldIDPassword = 4
-	userFieldIDType     = 5
-	userFieldIDActive   = 6
-	reservationFieldIDID         = 1
-	reservationFieldIDPropertyID = 2
-	reservationFieldIDGuestID    = 3
-	reservationFieldIDStartDate  = 4
-	reservationFieldIDEndDate    = 5
-	reservationFieldIDTotalValue = 6
+	standardMagic                   = "HST1"
+	entityTypeProperty              = 1
+	entityTypeUser                  = 2
+	entityTypeReservation           = 3
+	propertyFieldIDID               = 1
+	propertyFieldIDUserID           = 2
+	propertyFieldIDTitle            = 3
+	propertyFieldIDDescription      = 4
+	propertyFieldIDCity             = 5
+	propertyFieldIDDailyRate        = 6
+	propertyFieldIDCreatedAt        = 7
+	propertyFieldIDPhotos           = 8
+	propertyFieldIDActive           = 9
+	propertyFieldIDAddress          = 10
+	propertyFieldIDAmenities        = 11
+	userFieldIDID                   = 1
+	userFieldIDName                 = 2
+	userFieldIDEmail                = 3
+	userFieldIDPassword             = 4
+	userFieldIDType                 = 5
+	userFieldIDActive               = 6
+	reservationFieldIDID            = 1
+	reservationFieldIDPropertyID    = 2
+	reservationFieldIDGuestID       = 3
+	reservationFieldIDStartDate     = 4
+	reservationFieldIDEndDate       = 5
+	reservationFieldIDTotalValue    = 6
+	reservationFieldIDStatus        = 7
+	reservationFieldIDPaymentMethod = 8
+	reservationFieldIDPaymentStatus = 9
+	reservationFieldIDConfirmedAt   = 10
 )
 
 type recordField struct {
@@ -63,7 +70,7 @@ func reservationPayloadCodec() payloadCodec[domain.Reservation] {
 }
 
 func encodeProperty(item domain.Property) ([]byte, error) {
-	fields := make([]recordField, 0, 9)
+	fields := make([]recordField, 0, 11)
 
 	idData, err := encodeInt32Data(int32(item.ID))
 	if err != nil {
@@ -100,6 +107,18 @@ func encodeProperty(item domain.Property) ([]byte, error) {
 		return nil, err
 	}
 	fields = append(fields, recordField{id: propertyFieldIDActive, data: activeData})
+
+	addressData, err := encodeAddressData(item.Address)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDAddress, data: addressData})
+
+	amenitiesData, err := encodeAmenitiesData(item.Amenities)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDAmenities, data: amenitiesData})
 
 	return encodeStandardPayload(entityTypeProperty, fields)
 }
@@ -186,6 +205,26 @@ func decodePropertyFromStandard(fields map[uint8][]byte) (domain.Property, error
 		return domain.Property{}, err
 	}
 
+	if addressData, ok := optionalField(fields, propertyFieldIDAddress); ok {
+		item.Address, err = decodeAddressData(addressData)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	} else {
+		item.Address = domain.Address{City: item.City}
+	}
+
+	if amenitiesData, ok := optionalField(fields, propertyFieldIDAmenities); ok {
+		item.Amenities, err = decodeAmenitiesData(amenitiesData)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	}
+
+	if item.Address.City == "" {
+		item.Address.City = item.City
+	}
+
 	return item, nil
 }
 
@@ -243,6 +282,8 @@ func decodePropertyLegacy(payload []byte) (domain.Property, error) {
 	if err != nil {
 		return domain.Property{}, err
 	}
+
+	item.Address = domain.Address{City: item.City}
 
 	return item, nil
 }
@@ -362,7 +403,7 @@ func decodeUserLegacy(payload []byte) (domain.User, error) {
 }
 
 func encodeReservation(item domain.Reservation) ([]byte, error) {
-	fields := make([]recordField, 0, 6)
+	fields := make([]recordField, 0, 10)
 
 	idData, err := encodeInt32Data(int32(item.ID))
 	if err != nil {
@@ -390,6 +431,10 @@ func encodeReservation(item domain.Reservation) ([]byte, error) {
 		return nil, err
 	}
 	fields = append(fields, recordField{id: reservationFieldIDTotalValue, data: totalValueData})
+	fields = append(fields, recordField{id: reservationFieldIDStatus, data: []byte(item.Status)})
+	fields = append(fields, recordField{id: reservationFieldIDPaymentMethod, data: []byte(item.PaymentMethod)})
+	fields = append(fields, recordField{id: reservationFieldIDPaymentStatus, data: []byte(item.PaymentStatus)})
+	fields = append(fields, recordField{id: reservationFieldIDConfirmedAt, data: []byte(item.ConfirmedAt)})
 
 	return encodeStandardPayload(entityTypeReservation, fields)
 }
@@ -456,6 +501,21 @@ func decodeReservationFromStandard(fields map[uint8][]byte) (domain.Reservation,
 		return domain.Reservation{}, err
 	}
 
+	if statusData, ok := optionalField(fields, reservationFieldIDStatus); ok {
+		item.Status = domain.ReservationStatus(string(statusData))
+	}
+	if paymentMethodData, ok := optionalField(fields, reservationFieldIDPaymentMethod); ok {
+		item.PaymentMethod = domain.PaymentMethod(string(paymentMethodData))
+	}
+	if paymentStatusData, ok := optionalField(fields, reservationFieldIDPaymentStatus); ok {
+		item.PaymentStatus = domain.PaymentStatus(string(paymentStatusData))
+	}
+	if confirmedAtData, ok := optionalField(fields, reservationFieldIDConfirmedAt); ok {
+		item.ConfirmedAt = string(confirmedAtData)
+	}
+
+	item.SetDefaults()
+
 	return item, nil
 }
 
@@ -493,6 +553,8 @@ func decodeReservationLegacy(payload []byte) (domain.Reservation, error) {
 	if err != nil {
 		return domain.Reservation{}, err
 	}
+
+	item.SetDefaults()
 
 	return item, nil
 }
@@ -585,6 +647,159 @@ func requiredField(fields map[uint8][]byte, id uint8) ([]byte, error) {
 	return value, nil
 }
 
+func optionalField(fields map[uint8][]byte, id uint8) ([]byte, bool) {
+	value, ok := fields[id]
+	return value, ok
+}
+
+func encodeAddressData(value domain.Address) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeString(buf, value.Street); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.Number); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.Neighborhood); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.City); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.State); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.ZipCode); err != nil {
+		return nil, err
+	}
+	if err := writeString(buf, value.Complement); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeAddressData(data []byte) (domain.Address, error) {
+	if len(data) == 0 {
+		return domain.Address{}, nil
+	}
+
+	if data[0] == '{' {
+		var legacy domain.Address
+		if err := json.Unmarshal(data, &legacy); err != nil {
+			return domain.Address{}, err
+		}
+		return legacy, nil
+	}
+
+	reader := bytes.NewReader(data)
+	street, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+	number, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+	neighborhood, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+	city, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+	state, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+	zipCode, err := readString(reader)
+	if err != nil {
+		return domain.Address{}, err
+	}
+
+	complement := ""
+	if reader.Len() > 0 {
+		complement, err = readString(reader)
+		if err != nil {
+			if err != io.EOF && err != io.ErrUnexpectedEOF {
+				return domain.Address{}, err
+			}
+			complement = ""
+		}
+	}
+
+	return domain.Address{
+		Street:       street,
+		Number:       number,
+		Neighborhood: neighborhood,
+		City:         city,
+		State:        state,
+		ZipCode:      zipCode,
+		Complement:   complement,
+	}, nil
+}
+
+func encodeAmenitiesData(values []domain.Amenity) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	if err := writeUint32(buf, uint32(len(values))); err != nil {
+		return nil, err
+	}
+
+	for _, amenity := range values {
+		if err := writeString(buf, amenity.Name); err != nil {
+			return nil, err
+		}
+		buf.WriteByte(';')
+		if err := writeString(buf, amenity.Description); err != nil {
+			return nil, err
+		}
+		buf.WriteByte(';')
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeAmenitiesData(data []byte) ([]domain.Amenity, error) {
+	if len(data) == 0 {
+		return []domain.Amenity{}, nil
+	}
+
+	if data[0] == '[' {
+		var legacy []domain.Amenity
+		if err := json.Unmarshal(data, &legacy); err != nil {
+			return nil, err
+		}
+		return legacy, nil
+	}
+
+	reader := bytes.NewReader(data)
+	count, err := readUint32(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]domain.Amenity, 0, count)
+	for i := uint32(0); i < count; i++ {
+		name, err := readString(reader)
+		if err != nil {
+			return nil, err
+		}
+		if b, err := reader.ReadByte(); err == nil && b != ';' {
+			_ = reader.UnreadByte()
+		}
+		description, err := readString(reader)
+		if err != nil {
+			return nil, err
+		}
+		if b, err := reader.ReadByte(); err == nil && b != ';' {
+			_ = reader.UnreadByte()
+		}
+		values = append(values, domain.Amenity{Name: name, Description: description})
+	}
+
+	return values, nil
+}
+
 func encodeStringListData(values []string) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	if err := writeUint32(buf, uint32(len(values))); err != nil {
@@ -595,6 +810,7 @@ func encodeStringListData(values []string) ([]byte, error) {
 		if err := writeString(buf, value); err != nil {
 			return nil, err
 		}
+		buf.WriteByte(';')
 	}
 
 	return buf.Bytes(), nil
@@ -614,6 +830,9 @@ func decodeStringListData(data []byte) ([]string, error) {
 			return nil, err
 		}
 		values = append(values, value)
+		if b, err := reader.ReadByte(); err == nil && b != ';' {
+			_ = reader.UnreadByte()
+		}
 	}
 
 	return values, nil

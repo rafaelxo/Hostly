@@ -1,11 +1,11 @@
 package handler
 
 import (
+	"backend/internal/domain"
+	authuc "backend/internal/usecase/auth"
 	"encoding/json"
 	"net/http"
 	"strings"
-	"backend/internal/domain"
-	authuc "backend/internal/usecase/auth"
 )
 
 type AuthHandler struct {
@@ -18,13 +18,26 @@ type registerRequest struct {
 	Password string `json:"senha"`
 	AsHost   bool   `json:"comoAnfitriao"`
 	Property *struct {
-		Title       string   `json:"titulo"`
-		Description string   `json:"descricao"`
-		City        string   `json:"cidade"`
-		DailyRate   float64  `json:"valorDiaria"`
-		CreatedAt   string   `json:"dataCadastro"`
-		Photos      []string `json:"fotos"`
-		Active      bool     `json:"ativo"`
+		Title       string `json:"titulo"`
+		Description string `json:"descricao"`
+		Address     struct {
+			Street       string `json:"rua"`
+			Number       string `json:"numero"`
+			Neighborhood string `json:"bairro"`
+			City         string `json:"cidade"`
+			State        string `json:"estado"`
+			ZipCode      string `json:"cep"`
+			Complement   string `json:"complemento"`
+		} `json:"endereco"`
+		Amenities []struct {
+			Name        string `json:"nome"`
+			Description string `json:"descricao"`
+		} `json:"comodidades"`
+		City      string   `json:"cidade"`
+		DailyRate float64  `json:"valorDiaria"`
+		CreatedAt string   `json:"dataCadastro"`
+		Photos    []string `json:"fotos"`
+		Active    bool     `json:"ativo"`
 	} `json:"imovelInicial"`
 }
 
@@ -49,11 +62,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		initialProperty = &domain.Property{
 			Title:       req.Property.Title,
 			Description: req.Property.Description,
-			City:        req.Property.City,
-			DailyRate:   req.Property.DailyRate,
-			CreatedAt:   req.Property.CreatedAt,
-			Photos:      req.Property.Photos,
-			Active:      req.Property.Active,
+			Address: domain.Address{
+				Street:       req.Property.Address.Street,
+				Number:       req.Property.Address.Number,
+				Neighborhood: req.Property.Address.Neighborhood,
+				City:         req.Property.Address.City,
+				State:        req.Property.Address.State,
+				ZipCode:      req.Property.Address.ZipCode,
+				Complement:   req.Property.Address.Complement,
+			},
+			Amenities: mapAmenities(req.Property.Amenities),
+			City:      req.Property.City,
+			DailyRate: req.Property.DailyRate,
+			CreatedAt: req.Property.CreatedAt,
+			Photos:    req.Property.Photos,
+			Active:    req.Property.Active,
 		}
 	}
 
@@ -70,6 +93,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, session)
+}
+
+func mapAmenities(values []struct {
+	Name        string `json:"nome"`
+	Description string `json:"descricao"`
+}) []domain.Amenity {
+	if len(values) == 0 {
+		return []domain.Amenity{}
+	}
+	items := make([]domain.Amenity, 0, len(values))
+	for _, item := range values {
+		items = append(items, domain.Amenity{Name: item.Name, Description: item.Description})
+	}
+	return items
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
