@@ -27,7 +27,6 @@ type registerRequest struct {
 			City         string `json:"cidade"`
 			State        string `json:"estado"`
 			ZipCode      string `json:"cep"`
-			Complement   string `json:"complemento"`
 		} `json:"endereco"`
 		Amenities []struct {
 			Name        string `json:"nome"`
@@ -69,7 +68,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 				City:         req.Property.Address.City,
 				State:        req.Property.Address.State,
 				ZipCode:      req.Property.Address.ZipCode,
-				Complement:   req.Property.Address.Complement,
 			},
 			Amenities: mapAmenities(req.Property.Amenities),
 			City:      req.Property.City,

@@ -672,9 +672,6 @@ func encodeAddressData(value domain.Address) ([]byte, error) {
 	if err := writeString(buf, value.ZipCode); err != nil {
 		return nil, err
 	}
-	if err := writeString(buf, value.Complement); err != nil {
-		return nil, err
-	}
 	return buf.Bytes(), nil
 }
 
@@ -717,14 +714,12 @@ func decodeAddressData(data []byte) (domain.Address, error) {
 		return domain.Address{}, err
 	}
 
-	complement := ""
 	if reader.Len() > 0 {
-		complement, err = readString(reader)
+		_, err = readString(reader)
 		if err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				return domain.Address{}, err
 			}
-			complement = ""
 		}
 	}
 
@@ -735,7 +730,6 @@ func decodeAddressData(data []byte) (domain.Address, error) {
 		City:         city,
 		State:        state,
 		ZipCode:      zipCode,
-		Complement:   complement,
 	}, nil
 }
 

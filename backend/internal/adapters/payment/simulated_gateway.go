@@ -14,7 +14,6 @@ func NewSimulatedGateway() paymentuc.Gateway {
 }
 
 func (g *SimulatedGateway) Authorize(input paymentuc.AuthorizationInput) (paymentuc.AuthorizationResult, error) {
-	// Simple adapter for now: authorizes every supported payment method.
 	return paymentuc.AuthorizationResult{
 		Status:     domain.PaymentStatusApproved,
 		ApprovedAt: time.Now().Format(time.RFC3339),

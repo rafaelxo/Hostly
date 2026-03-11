@@ -19,7 +19,6 @@ type createPropertyRequest struct {
 		City         string `json:"cidade"`
 		State        string `json:"estado"`
 		ZipCode      string `json:"cep"`
-		Complement   string `json:"complemento"`
 	} `json:"endereco"`
 	Amenities []struct {
 		Name        string `json:"nome"`
@@ -43,7 +42,6 @@ type propertyUpdatePayload struct {
 		City         string `json:"cidade"`
 		State        string `json:"estado"`
 		ZipCode      string `json:"cep"`
-		Complement   string `json:"complemento"`
 	} `json:"endereco"`
 	Amenities *[]struct {
 		Name        string `json:"nome"`
@@ -166,7 +164,6 @@ func toDomainAddress(value struct {
 	City         string `json:"cidade"`
 	State        string `json:"estado"`
 	ZipCode      string `json:"cep"`
-	Complement   string `json:"complemento"`
 }) domain.Address {
 	return domain.Address{
 		Street:       value.Street,
@@ -175,7 +172,6 @@ func toDomainAddress(value struct {
 		City:         value.City,
 		State:        value.State,
 		ZipCode:      value.ZipCode,
-		Complement:   value.Complement,
 	}
 }
 
@@ -186,7 +182,6 @@ func toDomainAddressPtr(value *struct {
 	City         string `json:"cidade"`
 	State        string `json:"estado"`
 	ZipCode      string `json:"cep"`
-	Complement   string `json:"complemento"`
 }) *domain.Address {
 	if value == nil {
 		return nil

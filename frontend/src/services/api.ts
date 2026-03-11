@@ -13,7 +13,6 @@ export interface Imovel {
     cidade: string;
     estado: string;
     cep: string;
-    complemento?: string;
   };
   comodidades: {
     nome: string;
@@ -285,7 +284,6 @@ export const authService = {
         cidade: string;
         estado: string;
         cep: string;
-        complemento?: string;
       };
       comodidades: {
         nome: string;

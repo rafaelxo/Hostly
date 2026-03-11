@@ -101,7 +101,6 @@ export function ImovelDetailPage({
   const fullAddr = addr
     ? [
         addr.rua && addr.numero ? `${addr.rua}, ${addr.numero}` : addr.rua,
-        addr.complemento,
         addr.bairro,
         addr.cidade && addr.estado
           ? `${addr.cidade} — ${addr.estado}`

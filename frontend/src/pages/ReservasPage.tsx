@@ -59,6 +59,7 @@ type ReservasPageProps = {
   guestId?: number;
   hostId?: number;
   fixedGuestId?: number;
+  preselectedImovelId?: number;
   activeOnly?: boolean;
   canManage?: boolean;
   title?: string;
@@ -68,6 +69,7 @@ export function ReservasPage({
   guestId,
   hostId,
   fixedGuestId,
+  preselectedImovelId,
   activeOnly = false,
   canManage = true,
   title = "Reservas",
@@ -106,6 +108,19 @@ export function ReservasPage({
   useEffect(() => {
     void refetch();
   }, [guestId, hostId, activeOnly]);
+
+  useEffect(() => {
+    if (!canManage || typeof preselectedImovelId !== "number") return;
+
+    setEditingId(null);
+    setSelectedReserva(null);
+    setForm({
+      ...initialForm,
+      idImovel: String(preselectedImovelId),
+      idHospede: fixedGuestId ? String(fixedGuestId) : "",
+    });
+    setView("new");
+  }, [canManage, fixedGuestId, preselectedImovelId]);
 
   const set = (k: keyof FormState, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));

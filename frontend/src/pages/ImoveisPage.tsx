@@ -31,7 +31,6 @@ type FormState = {
   cidade: string;
   estado: string;
   cep: string;
-  complemento: string;
   valorDiaria: string;
   comodidades: string;
   fotos: string;
@@ -48,7 +47,6 @@ const initialForm: FormState = {
   cidade: "",
   estado: "",
   cep: "",
-  complemento: "",
   valorDiaria: "",
   comodidades: "",
   fotos: "",
@@ -57,6 +55,7 @@ const initialForm: FormState = {
 
 type ImoveisPageProps = {
   ownerId?: number;
+  onlyActive?: boolean;
   canManage?: boolean;
   title?: string;
   onViewDetail?: (id: number) => void;
@@ -64,6 +63,7 @@ type ImoveisPageProps = {
 
 export function ImoveisPage({
   ownerId,
+  onlyActive = false,
   canManage = true,
   title = "Imóveis",
   onViewDetail,
@@ -103,10 +103,11 @@ export function ImoveisPage({
     () =>
       imoveis.filter(
         (i) =>
-          i.titulo.toLowerCase().includes(search.toLowerCase()) ||
-          i.cidade.toLowerCase().includes(search.toLowerCase()),
+          (!onlyActive || i.ativo) &&
+          (i.titulo.toLowerCase().includes(search.toLowerCase()) ||
+            i.cidade.toLowerCase().includes(search.toLowerCase())),
       ),
-    [imoveis, search],
+    [imoveis, onlyActive, search],
   );
 
   const set = (k: keyof FormState, v: string | boolean) =>
@@ -135,7 +136,6 @@ export function ImoveisPage({
       cidade: item.cidade,
       estado: item.endereco?.estado ?? "",
       cep: item.endereco?.cep ?? "",
-      complemento: item.endereco?.complemento ?? "",
       valorDiaria: String(item.valorDiaria),
       comodidades: (item.comodidades ?? []).map((c) => c.nome).join(", "),
       fotos: item.fotos.join(", "),
@@ -182,7 +182,6 @@ export function ImoveisPage({
           cidade: form.cidade,
           estado: form.estado,
           cep: form.cep,
-          complemento: form.complemento,
         },
         comodidades: form.comodidades
           .split(",")
@@ -299,15 +298,6 @@ export function ImoveisPage({
                   required
                 />
               </Field>
-              <div className="md:col-span-2">
-                <Field label="Complemento">
-                  <input
-                    className={inputCls}
-                    value={form.complemento}
-                    onChange={(e) => set("complemento", e.target.value)}
-                  />
-                </Field>
-              </div>
               <Field label="Valor da diária" required>
                 <input
                   className={inputCls}

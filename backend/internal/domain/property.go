@@ -14,7 +14,6 @@ type Address struct {
 	City         string `json:"cidade"`
 	State        string `json:"estado"`
 	ZipCode      string `json:"cep"`
-	Complement   string `json:"complemento,omitempty"`
 }
 
 type Amenity struct {
@@ -117,7 +116,6 @@ func normalizeAddress(a Address) Address {
 	a.City = strings.TrimSpace(a.City)
 	a.State = strings.TrimSpace(a.State)
 	a.ZipCode = strings.TrimSpace(a.ZipCode)
-	a.Complement = strings.TrimSpace(a.Complement)
 	return a
 }
 

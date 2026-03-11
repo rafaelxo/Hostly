@@ -76,10 +76,12 @@ function PropertyDetailPanel({
   imovel,
   onClose,
   onViewDetail,
+  onBook,
 }: {
   imovel: Imovel;
   onClose: () => void;
   onViewDetail?: (id: number) => void;
+  onBook?: (id: number) => void;
 }) {
   const addr = imovel.endereco;
   const fullAddr = addr
@@ -164,14 +166,24 @@ function PropertyDetailPanel({
             </div>
           )}
 
-          {onViewDetail && (
-            <button
-              onClick={() => onViewDetail(imovel.idImovel)}
-              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold transition-colors"
-            >
-              Ver página completa →
-            </button>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {onBook && (
+              <button
+                onClick={() => onBook(imovel.idImovel)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
+              >
+                Realizar reserva
+              </button>
+            )}
+            {onViewDetail && (
+              <button
+                onClick={() => onViewDetail(imovel.idImovel)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold transition-colors"
+              >
+                Ver página completa →
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -182,10 +194,12 @@ function RegionMap({
   imoveis,
   reservas,
   onViewDetail,
+  onBook,
 }: {
   imoveis: Imovel[];
   reservas: Reserva[];
   onViewDetail?: (id: number) => void;
+  onBook?: (id: number) => void;
 }) {
   const [dataInicio, setDataInicio] = useState(() => toIsoDate(new Date()));
   const [dataFim, setDataFim] = useState(() => {
@@ -408,6 +422,7 @@ function RegionMap({
           imovel={selectedProperty}
           onClose={() => setSelectedPropertyId(null)}
           onViewDetail={onViewDetail}
+          onBook={onBook}
         />
       )}
     </section>
@@ -416,7 +431,11 @@ function RegionMap({
 
 export function DashboardPage({
   onViewDetail,
-}: { onViewDetail?: (id: number) => void } = {}) {
+  onBook,
+}: {
+  onViewDetail?: (id: number) => void;
+  onBook?: (id: number) => void;
+} = {}) {
   const [imoveis, setImoveis] = useState<Imovel[]>([]);
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -460,6 +479,7 @@ export function DashboardPage({
         imoveis={imoveis}
         reservas={reservas}
         onViewDetail={onViewDetail}
+        onBook={onBook}
       />
     </div>
   );

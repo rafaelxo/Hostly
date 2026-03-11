@@ -33,7 +33,8 @@ type PageId =
   | "reservasRecebidas"
   | "receita"
   | "reservasAtivas"
-  | "usuariosAtivos";
+  | "usuariosAtivos"
+  | "imoveisAtivos";
 
 type NavItem = { id: PageId; label: string; icon: ReactNode };
 
@@ -41,6 +42,11 @@ function getNav(user: Usuario): NavItem[] {
   if (user.tipo === "ADMIN") {
     return [
       { id: "dashboard", label: "Dashboard", icon: <IconHome /> },
+      {
+        id: "imoveisAtivos",
+        label: "Imóveis Ativos",
+        icon: <IconBuilding />,
+      },
       {
         id: "reservasAtivas",
         label: "Reservas Ativas",
@@ -88,6 +94,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   receita: "Receita por Imóvel",
   reservasAtivas: "Reservas Ativas",
   usuariosAtivos: "Usuários Ativos",
+  imoveisAtivos: "Imóveis Ativos",
 };
 
 type NovoImovelForm = {
@@ -99,7 +106,6 @@ type NovoImovelForm = {
   cidade: string;
   estado: string;
   cep: string;
-  complemento: string;
   valorDiaria: string;
   comodidades: string;
   fotos: string;
@@ -114,7 +120,6 @@ const initialNovoImovelForm: NovoImovelForm = {
   cidade: "",
   estado: "",
   cep: "",
-  complemento: "",
   valorDiaria: "",
   comodidades: "",
   fotos: "",
@@ -225,14 +230,6 @@ const AddPropertyModal = ({
               onChange={(e) => onChange("valorDiaria", e.target.value)}
               required
             />
-            <div className="md:col-span-2">
-              <input
-                className={inputCls}
-                placeholder="Complemento"
-                value={form.complemento}
-                onChange={(e) => onChange("complemento", e.target.value)}
-              />
-            </div>
             <div className="md:col-span-2">
               <textarea
                 className={`${inputCls} resize-none`}
@@ -437,6 +434,9 @@ export default function App() {
     initialNovoImovelForm,
   );
   const [viewingImovelId, setViewingImovelId] = useState<number | null>(null);
+  const [preselectedReservaImovelId, setPreselectedReservaImovelId] = useState<
+    number | null
+  >(null);
 
   const navItems = useMemo(() => (user ? getNav(user) : []), [user]);
 
@@ -480,7 +480,14 @@ export default function App() {
 
   const handleNavigate = (nextPage: PageId) => {
     setViewingImovelId(null);
+    setPreselectedReservaImovelId(null);
     setPage(nextPage);
+  };
+
+  const handleStartReserva = (imovelId: number) => {
+    setViewingImovelId(null);
+    setPreselectedReservaImovelId(imovelId);
+    setPage("minhasReservas");
   };
 
   const handleCreateProperty = async (e: React.FormEvent) => {
@@ -523,7 +530,6 @@ export default function App() {
           cidade: novoImovelForm.cidade,
           estado: novoImovelForm.estado,
           cep: novoImovelForm.cep,
-          complemento: novoImovelForm.complemento,
         },
         comodidades: novoImovelForm.comodidades
           .split(",")
@@ -575,12 +581,22 @@ export default function App() {
 
     switch (page) {
       case "dashboard":
-        return <DashboardPage onViewDetail={(id) => setViewingImovelId(id)} />;
+        return (
+          <DashboardPage
+            onViewDetail={(id) => setViewingImovelId(id)}
+            onBook={
+              user.tipo === "HOSPEDE" || user.tipo === "ANFITRIAO"
+                ? handleStartReserva
+                : undefined
+            }
+          />
+        );
       case "minhasReservas":
         return (
           <ReservasPage
             guestId={user.idUsuario}
             fixedGuestId={user.idUsuario}
+            preselectedImovelId={preselectedReservaImovelId ?? undefined}
             canManage={user.tipo !== "ADMIN"}
             title="Minhas Reservas"
           />
@@ -614,6 +630,15 @@ export default function App() {
             onlyActive
             canManage={false}
             title="Usuários Ativos"
+          />
+        );
+      case "imoveisAtivos":
+        return (
+          <ImoveisPage
+            onlyActive
+            canManage={false}
+            title="Imóveis Ativos"
+            onViewDetail={(id) => setViewingImovelId(id)}
           />
         );
       default:
