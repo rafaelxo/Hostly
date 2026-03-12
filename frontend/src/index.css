@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Keep Leaflet layers inside page content stacking context. */
+.leaflet-container {
+	position: relative;
+	z-index: 0;
+}

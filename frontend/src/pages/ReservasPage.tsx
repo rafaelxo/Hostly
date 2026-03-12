@@ -9,7 +9,7 @@ import {
 } from "../components/common";
 import { IconEdit, IconPlus, IconTrash } from "../components/icons";
 import { useImoveis, useUsuarios } from "../hooks/useData";
-import { reservaService } from "../services/api";
+import { reservaService, type Reserva } from "../services/api";
 
 type View = "list" | "new" | "edit";
 
@@ -18,6 +18,13 @@ type FormState = {
   idHospede: string;
   dataInicio: string;
   dataFim: string;
+  formaPagamento:
+    | ""
+    | "PIX"
+    | "CARTAO_CREDITO"
+    | "CARTAO_DEBITO"
+    | "BOLETO"
+    | "DINHEIRO";
 };
 
 const initialForm: FormState = {
@@ -25,6 +32,7 @@ const initialForm: FormState = {
   idHospede: "",
   dataInicio: "",
   dataFim: "",
+  formaPagamento: "",
 };
 
 const parseLocalDate = (value: string) => {
@@ -51,6 +59,7 @@ type ReservasPageProps = {
   guestId?: number;
   hostId?: number;
   fixedGuestId?: number;
+  preselectedImovelId?: number;
   activeOnly?: boolean;
   canManage?: boolean;
   title?: string;
@@ -60,20 +69,12 @@ export function ReservasPage({
   guestId,
   hostId,
   fixedGuestId,
+  preselectedImovelId,
   activeOnly = false,
   canManage = true,
   title = "Reservas",
 }: ReservasPageProps) {
-  const [reservas, setReservas] = useState<
-    {
-      idReserva: number;
-      idImovel: number;
-      idHospede: number;
-      dataInicio: string;
-      dataFim: string;
-      valorTotal: number;
-    }[]
-  >([]);
+  const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { data: imoveis } = useImoveis();
@@ -82,6 +83,7 @@ export function ReservasPage({
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
 
   const refetch = async () => {
     setLoading(true);
@@ -106,6 +108,19 @@ export function ReservasPage({
   useEffect(() => {
     void refetch();
   }, [guestId, hostId, activeOnly]);
+
+  useEffect(() => {
+    if (!canManage || typeof preselectedImovelId !== "number") return;
+
+    setEditingId(null);
+    setSelectedReserva(null);
+    setForm({
+      ...initialForm,
+      idImovel: String(preselectedImovelId),
+      idHospede: fixedGuestId ? String(fixedGuestId) : "",
+    });
+    setView("new");
+  }, [canManage, fixedGuestId, preselectedImovelId]);
 
   const set = (k: keyof FormState, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -132,6 +147,7 @@ export function ReservasPage({
       idHospede: String(item.idHospede),
       dataInicio: item.dataInicio,
       dataFim: item.dataFim,
+      formaPagamento: "",
     });
     setView("edit");
   };
@@ -161,6 +177,7 @@ export function ReservasPage({
         idHospede: Number(form.idHospede),
         dataInicio: form.dataInicio,
         dataFim: form.dataFim,
+        formaPagamento: form.formaPagamento,
       };
 
       if (view === "new") {
@@ -186,6 +203,45 @@ export function ReservasPage({
   const getNomeHospede = (idHospede: number) => {
     const usuario = (usuarios ?? []).find((u) => u.idUsuario === idHospede);
     return usuario?.nome ?? `Usuário #${idHospede}`;
+  };
+
+  const getNomeImovel = (idImovel: number) =>
+    (imoveis ?? []).find((i) => i.idImovel === idImovel)?.titulo ??
+    `Imóvel #${idImovel}`;
+
+  const fmtPagamento = (fp: string) =>
+    ((
+      ({
+        PIX: "PIX",
+        CARTAO_CREDITO: "Cartão de crédito",
+        CARTAO_DEBITO: "Cartão de débito",
+        BOLETO: "Boleto",
+        DINHEIRO: "Dinheiro",
+      }) as Record<string, string>
+    )[fp] ??
+      fp) ||
+    "—";
+
+  const fmtStatusPgto = (sp: string) =>
+    (
+      ({
+        NAO_INICIADO: "Não iniciado",
+        PENDENTE: "Pendente",
+        APROVADO: "Aprovado",
+        FALHOU: "Falhou",
+      }) as Record<string, string>
+    )[sp] ?? sp;
+
+  const handleConfirm = async (
+    idReserva: number,
+    formaPagamento: FormState["formaPagamento"],
+  ) => {
+    if (!formaPagamento) {
+      window.alert("Selecione uma forma de pagamento antes de confirmar.");
+      return;
+    }
+    await reservaService.confirm(idReserva, formaPagamento);
+    await refetch();
   };
 
   if (view !== "list") {
@@ -252,6 +308,27 @@ export function ReservasPage({
                   required
                 />
               </Field>
+              <div className="md:col-span-2">
+                <Field label="Forma de pagamento (opcional no cadastro)">
+                  <select
+                    className={inputCls}
+                    value={form.formaPagamento}
+                    onChange={(e) =>
+                      set(
+                        "formaPagamento",
+                        e.target.value as FormState["formaPagamento"],
+                      )
+                    }
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="PIX">PIX</option>
+                    <option value="CARTAO_CREDITO">Cartão de crédito</option>
+                    <option value="CARTAO_DEBITO">Cartão de débito</option>
+                    <option value="BOLETO">Boleto</option>
+                    <option value="DINHEIRO">Dinheiro</option>
+                  </select>
+                </Field>
+              </div>
             </div>
           </FormCard>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
@@ -329,6 +406,9 @@ export function ReservasPage({
                 <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
                   Total
                 </th>
+                <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
+                  Status
+                </th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -336,13 +416,14 @@ export function ReservasPage({
               {reservas.map((r) => (
                 <tr
                   key={r.idReserva}
-                  className="hover:bg-stone-50 transition-colors"
+                  onClick={() => setSelectedReserva(r)}
+                  className="hover:bg-stone-50 transition-colors cursor-pointer"
                 >
                   <td className="px-6 py-4 text-sm font-medium text-stone-800">
                     {getNomeHospede(r.idHospede)}
                   </td>
                   <td className="px-4 py-4 text-sm text-stone-500">
-                    Imóvel #{r.idImovel}
+                    {getNomeImovel(r.idImovel)}
                   </td>
                   <td className="px-4 py-4 text-sm text-stone-500">
                     {formatPtBrDate(r.dataInicio)} → {formatPtBrDate(r.dataFim)}
@@ -350,9 +431,33 @@ export function ReservasPage({
                   <td className="px-4 py-4 text-sm font-semibold text-stone-700">
                     R$ {r.valorTotal.toLocaleString("pt-BR")}
                   </td>
+                  <td className="px-4 py-4 text-xs">
+                    <span
+                      className={`px-2 py-1 rounded-full font-semibold ${
+                        r.status === "CONFIRMADA"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : r.status === "CANCELADA"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-4">
                     {canManage && (
-                      <div className="flex items-center gap-2 justify-end">
+                      <div
+                        className="flex items-center gap-2 justify-end"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {r.status === "PENDENTE" && (
+                          <button
+                            onClick={() => handleConfirm(r.idReserva, "PIX")}
+                            className="px-2 py-1 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                          >
+                            Confirmar
+                          </button>
+                        )}
                         <button
                           onClick={() => startEdit(r)}
                           className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
@@ -372,6 +477,164 @@ export function ReservasPage({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* */}
+      {selectedReserva && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30"
+          onClick={() => setSelectedReserva(null)}
+        >
+          <div
+            className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl border-l border-stone-200 flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+              <div>
+                <h3 className="text-base font-semibold text-stone-800">
+                  Reserva #{selectedReserva.idReserva}
+                </h3>
+                <span
+                  className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    selectedReserva.status === "CONFIRMADA"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : selectedReserva.status === "CANCELADA"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {selectedReserva.status}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedReserva(null)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors text-lg leading-none"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* */}
+              <div className="grid grid-cols-1 gap-3">
+                <div className="bg-stone-50 rounded-xl p-4 space-y-2">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">
+                    Imóvel
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {getNomeImovel(selectedReserva.idImovel)}
+                  </p>
+                </div>
+                <div className="bg-stone-50 rounded-xl p-4 space-y-2">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider">
+                    Hóspede
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {getNomeHospede(selectedReserva.idHospede)}
+                  </p>
+                </div>
+              </div>
+
+              {/* */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-stone-50 rounded-xl p-4">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider mb-1">
+                    Check-in
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {formatPtBrDate(selectedReserva.dataInicio)}
+                  </p>
+                </div>
+                <div className="bg-stone-50 rounded-xl p-4">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider mb-1">
+                    Check-out
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {formatPtBrDate(selectedReserva.dataFim)}
+                  </p>
+                </div>
+                <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wider mb-1">
+                    Total da reserva
+                  </p>
+                  <p className="text-lg font-semibold text-amber-700">
+                    R$ {selectedReserva.valorTotal.toLocaleString("pt-BR")}
+                  </p>
+                </div>
+              </div>
+
+              {/* */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-stone-50 rounded-xl p-4">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider mb-1">
+                    Forma de pgto.
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {fmtPagamento(selectedReserva.formaPagamento)}
+                  </p>
+                </div>
+                <div className="bg-stone-50 rounded-xl p-4">
+                  <p className="text-[11px] text-stone-400 font-semibold uppercase tracking-wider mb-1">
+                    Status pgto.
+                  </p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {fmtStatusPgto(selectedReserva.statusPagamento)}
+                  </p>
+                </div>
+                {selectedReserva.confirmadaEm && (
+                  <div className="col-span-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <p className="text-[11px] text-emerald-700 font-semibold uppercase tracking-wider mb-1">
+                      Confirmada em
+                    </p>
+                    <p className="text-sm font-medium text-emerald-800">
+                      {new Date(selectedReserva.confirmadaEm).toLocaleString(
+                        "pt-BR",
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* */}
+            {canManage && (
+              <div className="px-5 py-4 border-t border-stone-100 flex items-center gap-3">
+                {selectedReserva.status === "PENDENTE" && (
+                  <button
+                    onClick={async () => {
+                      await handleConfirm(selectedReserva.idReserva, "PIX");
+                      setSelectedReserva(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                  >
+                    Confirmar reserva
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    startEdit(selectedReserva);
+                    setSelectedReserva(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors"
+                >
+                  <IconEdit /> Editar
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleDelete(selectedReserva.idReserva);
+                    setSelectedReserva(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <IconTrash /> Excluir
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

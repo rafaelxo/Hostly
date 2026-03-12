@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ErrorMsg, Field, FormCard, inputCls } from "../components/common";
 import logoImg from "../assets/logo.png";
+import { ErrorMsg, Field, FormCard, inputCls } from "../components/common";
 import { authService } from "../services/api";
 
 type AuthPageProps = {
@@ -25,6 +25,13 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [imovelTitulo, setImovelTitulo] = useState("");
   const [imovelDescricao, setImovelDescricao] = useState("");
   const [imovelCidade, setImovelCidade] = useState("");
+  const [imovelRua, setImovelRua] = useState("");
+  const [imovelNumero, setImovelNumero] = useState("");
+  const [imovelBairro, setImovelBairro] = useState("");
+  const [imovelEstado, setImovelEstado] = useState("");
+  const [imovelCep, setImovelCep] = useState("");
+  const [imovelFoto, setImovelFoto] = useState("");
+  const [imovelComodidades, setImovelComodidades] = useState("");
   const [imovelDiaria, setImovelDiaria] = useState("");
 
   function evaluatePassword(pw: string) {
@@ -35,7 +42,13 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     if (/[^A-Za-z0-9]/.test(pw)) score++;
 
     const labels = ["Muito fraca", "Fraca", "Média", "Forte", "Muito forte"];
-    const colors = ["bg-red-400", "bg-rose-400", "bg-amber-400", "bg-lime-400", "bg-green-500"];
+    const colors = [
+      "bg-red-400",
+      "bg-rose-400",
+      "bg-amber-400",
+      "bg-lime-400",
+      "bg-green-500",
+    ];
     return { score, label: labels[score], color: colors[score] };
   }
 
@@ -47,7 +60,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
         <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
           <div className={`${color} h-2`} style={{ width: `${percent}%` }} />
         </div>
-        <p className="text-xs text-stone-500">Força: <span className="font-semibold">{label}</span></p>
+        <p className="text-xs text-stone-500">
+          Força: <span className="font-semibold">{label}</span>
+        </p>
       </div>
     );
   };
@@ -81,10 +96,23 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
               imovelInicial: {
                 titulo: imovelTitulo,
                 descricao: imovelDescricao,
+                endereco: {
+                  rua: imovelRua,
+                  numero: imovelNumero,
+                  bairro: imovelBairro,
+                  cidade: imovelCidade,
+                  estado: imovelEstado,
+                  cep: imovelCep,
+                },
+                comodidades: imovelComodidades
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .map((nome) => ({ nome })),
                 cidade: imovelCidade,
                 valorDiaria: Number(imovelDiaria),
                 dataCadastro: new Date().toISOString().slice(0, 10),
-                fotos: [],
+                fotos: [imovelFoto],
                 ativo: true,
               },
             }
@@ -107,9 +135,15 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-4">
         <div className="text-center">
-          <img src={logoImg} alt="Hostly" className="mx-auto w-20 h-20 mb-3 object-contain" />
+          <img
+            src={logoImg}
+            alt="Hostly"
+            className="mx-auto w-20 h-20 mb-3 object-contain"
+          />
           <h1 className="text-2xl font-bold text-stone-800">Hostly</h1>
-          <p className="text-sm text-stone-500">Acesse sua conta para continuar</p>
+          <p className="text-sm text-stone-500">
+            Acesse sua conta para continuar
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-2 flex">
@@ -236,6 +270,50 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         required
                       />
                     </Field>
+                    <Field label="Estado (UF)" required>
+                      <input
+                        className={inputCls}
+                        value={imovelEstado}
+                        onChange={(e) =>
+                          setImovelEstado(e.target.value.toUpperCase())
+                        }
+                        required
+                        minLength={2}
+                        maxLength={2}
+                      />
+                    </Field>
+                    <Field label="Rua" required>
+                      <input
+                        className={inputCls}
+                        value={imovelRua}
+                        onChange={(e) => setImovelRua(e.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="Número" required>
+                      <input
+                        className={inputCls}
+                        value={imovelNumero}
+                        onChange={(e) => setImovelNumero(e.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="Bairro" required>
+                      <input
+                        className={inputCls}
+                        value={imovelBairro}
+                        onChange={(e) => setImovelBairro(e.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="CEP" required>
+                      <input
+                        className={inputCls}
+                        value={imovelCep}
+                        onChange={(e) => setImovelCep(e.target.value)}
+                        required
+                      />
+                    </Field>
                     <Field label="Valor da diária" required>
                       <input
                         className={inputCls}
@@ -253,6 +331,21 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         value={imovelDescricao}
                         onChange={(e) => setImovelDescricao(e.target.value)}
                         required
+                      />
+                    </Field>
+                    <Field label="Foto principal (URL)" required>
+                      <input
+                        className={inputCls}
+                        value={imovelFoto}
+                        onChange={(e) => setImovelFoto(e.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field label="Comodidades (separadas por vírgula)">
+                      <input
+                        className={inputCls}
+                        value={imovelComodidades}
+                        onChange={(e) => setImovelComodidades(e.target.value)}
                       />
                     </Field>
                   </div>

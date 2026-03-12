@@ -6,6 +6,18 @@ export interface Imovel {
   idUsuario: number;
   titulo: string;
   descricao: string;
+  endereco: {
+    rua: string;
+    numero: string;
+    bairro: string;
+    cidade: string;
+    estado: string;
+    cep: string;
+  };
+  comodidades: {
+    nome: string;
+    descricao?: string;
+  }[];
   cidade: string;
   valorDiaria: number;
   dataCadastro: string;
@@ -43,6 +55,16 @@ export interface Reserva {
   dataInicio: string;
   dataFim: string;
   valorTotal: number;
+  status: "PENDENTE" | "CONFIRMADA" | "CANCELADA";
+  formaPagamento:
+    | ""
+    | "PIX"
+    | "CARTAO_CREDITO"
+    | "CARTAO_DEBITO"
+    | "BOLETO"
+    | "DINHEIRO";
+  statusPagamento: "NAO_INICIADO" | "PENDENTE" | "APROVADO" | "FALHOU";
+  confirmadaEm?: string;
 }
 
 export interface DashboardStats {
@@ -62,8 +84,16 @@ export type CreateUsuarioInput = {
 
 export type UpdateUsuarioInput = Partial<CreateUsuarioInput>;
 
-export type CreateReservaInput = Omit<Reserva, "idReserva" | "valorTotal">;
-export type UpdateReservaInput = Partial<CreateReservaInput>;
+export type CreateReservaInput = {
+  idImovel: number;
+  idHospede: number;
+  dataInicio: string;
+  dataFim: string;
+  formaPagamento?: Reserva["formaPagamento"];
+};
+export type UpdateReservaInput = Partial<CreateReservaInput> & {
+  status?: Reserva["status"];
+};
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -213,6 +243,12 @@ export const reservaService = {
       body: JSON.stringify(data),
     });
   },
+  async confirm(id: number, formaPagamento: Reserva["formaPagamento"]) {
+    return request<Reserva>(`/reservas/${id}/confirmar`, {
+      method: "PUT",
+      body: JSON.stringify({ formaPagamento }),
+    });
+  },
   async delete(id: number): Promise<void> {
     return request<void>(`/reservas/${id}`, { method: "DELETE" });
   },
@@ -241,6 +277,18 @@ export const authService = {
     imovelInicial?: {
       titulo: string;
       descricao: string;
+      endereco: {
+        rua: string;
+        numero: string;
+        bairro: string;
+        cidade: string;
+        estado: string;
+        cep: string;
+      };
+      comodidades: {
+        nome: string;
+        descricao?: string;
+      }[];
       cidade: string;
       valorDiaria: number;
       dataCadastro: string;

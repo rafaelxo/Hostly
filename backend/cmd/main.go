@@ -1,14 +1,15 @@
 package main
 
 import (
-	"log"
-	"net/http"
+	"backend/internal/adapters/payment"
 	"backend/internal/adapters/repository"
 	web "backend/internal/adapters/web"
 	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
+	"log"
+	"net/http"
 )
 
 func main() {
@@ -29,7 +30,8 @@ func main() {
 
 	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
-	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo)
+	paymentGateway := payment.NewSimulatedGateway()
+	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
 	authService := authuc.NewService(userService, propertyService)
 
 	if _, err := authService.SeedDefaultAdmin(); err != nil {

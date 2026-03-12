@@ -9,6 +9,8 @@ type PropertyPatch struct {
 	UserID      *int
 	Title       *string
 	Description *string
+	Address     *domain.Address
+	Amenities   *[]domain.Amenity
 	City        *string
 	DailyRate   *float64
 	CreatedAt   *string
@@ -17,6 +19,7 @@ type PropertyPatch struct {
 }
 
 func (s *service) Create(item domain.Property) (domain.Property, error) {
+	item.Normalize()
 	if item.CreatedAt == "" {
 		item.CreatedAt = time.Now().Format("2006-01-02")
 	}
@@ -91,6 +94,7 @@ func (s *service) Update(id int, item domain.Property) (domain.Property, error) 
 	if id <= 0 {
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
+	item.Normalize()
 	item.ID = id
 	owner, err := s.userRepo.GetByID(item.UserID)
 	if err != nil {
@@ -119,6 +123,12 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	if p.Description != nil {
 		existing.Description = *p.Description
 	}
+	if p.Address != nil {
+		existing.Address = *p.Address
+	}
+	if p.Amenities != nil {
+		existing.Amenities = *p.Amenities
+	}
 	if p.City != nil {
 		existing.City = *p.City
 	}
@@ -134,6 +144,8 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	if p.Active != nil {
 		existing.Active = *p.Active
 	}
+
+	existing.Normalize()
 
 	owner, err := s.userRepo.GetByID(existing.UserID)
 	if err != nil {

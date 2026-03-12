@@ -11,6 +11,7 @@ import {
 import {
   IconBuilding,
   IconEdit,
+  IconEye,
   IconPlus,
   IconSearch,
   IconTrash,
@@ -24,8 +25,14 @@ type FormState = {
   idUsuario: string;
   titulo: string;
   descricao: string;
+  rua: string;
+  numero: string;
+  bairro: string;
   cidade: string;
+  estado: string;
+  cep: string;
   valorDiaria: string;
+  comodidades: string;
   fotos: string;
   ativo: boolean;
 };
@@ -34,22 +41,32 @@ const initialForm: FormState = {
   idUsuario: "",
   titulo: "",
   descricao: "",
+  rua: "",
+  numero: "",
+  bairro: "",
   cidade: "",
+  estado: "",
+  cep: "",
   valorDiaria: "",
+  comodidades: "",
   fotos: "",
   ativo: true,
 };
 
 type ImoveisPageProps = {
   ownerId?: number;
+  onlyActive?: boolean;
   canManage?: boolean;
   title?: string;
+  onViewDetail?: (id: number) => void;
 };
 
 export function ImoveisPage({
   ownerId,
+  onlyActive = false,
   canManage = true,
   title = "Imóveis",
+  onViewDetail,
 }: ImoveisPageProps) {
   const [imoveis, setImoveis] = useState<Imovel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +75,7 @@ export function ImoveisPage({
   const [view, setView] = useState<View>("list");
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
 
@@ -85,10 +103,11 @@ export function ImoveisPage({
     () =>
       imoveis.filter(
         (i) =>
-          i.titulo.toLowerCase().includes(search.toLowerCase()) ||
-          i.cidade.toLowerCase().includes(search.toLowerCase()),
+          (!onlyActive || i.ativo) &&
+          (i.titulo.toLowerCase().includes(search.toLowerCase()) ||
+            i.cidade.toLowerCase().includes(search.toLowerCase())),
       ),
-    [imoveis, search],
+    [imoveis, onlyActive, search],
   );
 
   const set = (k: keyof FormState, v: string | boolean) =>
@@ -96,6 +115,7 @@ export function ImoveisPage({
 
   const startNew = () => {
     setEditingId(null);
+    setFormError(null);
     setForm({
       ...initialForm,
       idUsuario: ownerId ? String(ownerId) : "",
@@ -105,12 +125,19 @@ export function ImoveisPage({
 
   const startEdit = (item: Imovel) => {
     setEditingId(item.idImovel);
+    setFormError(null);
     setForm({
       idUsuario: String(item.idUsuario),
       titulo: item.titulo,
       descricao: item.descricao,
+      rua: item.endereco?.rua ?? "",
+      numero: item.endereco?.numero ?? "",
+      bairro: item.endereco?.bairro ?? "",
       cidade: item.cidade,
+      estado: item.endereco?.estado ?? "",
+      cep: item.endereco?.cep ?? "",
       valorDiaria: String(item.valorDiaria),
+      comodidades: (item.comodidades ?? []).map((c) => c.nome).join(", "),
       fotos: item.fotos.join(", "),
       ativo: item.ativo,
     });
@@ -125,19 +152,46 @@ export function ImoveisPage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    const fotos = form.fotos
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean);
+
+    if (fotos.length === 0) {
+      setFormError("Informe ao menos uma foto válida do imóvel.");
+      return;
+    }
+
+    if (Number(form.valorDiaria) <= 0) {
+      setFormError("O valor da diária deve ser maior que zero.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         idUsuario: Number(form.idUsuario),
         titulo: form.titulo,
         descricao: form.descricao,
+        endereco: {
+          rua: form.rua,
+          numero: form.numero,
+          bairro: form.bairro,
+          cidade: form.cidade,
+          estado: form.estado,
+          cep: form.cep,
+        },
+        comodidades: form.comodidades
+          .split(",")
+          .map((nome) => nome.trim())
+          .filter(Boolean)
+          .map((nome) => ({ nome })),
         cidade: form.cidade,
         valorDiaria: Number(form.valorDiaria),
         dataCadastro: new Date().toISOString().slice(0, 10),
-        fotos: form.fotos
-          .split(",")
-          .map((f) => f.trim())
-          .filter(Boolean),
+        fotos,
         ativo: form.ativo,
       };
 
@@ -192,6 +246,16 @@ export function ImoveisPage({
                   required
                 />
               </Field>
+              <Field label="Estado (UF)" required>
+                <input
+                  className={inputCls}
+                  value={form.estado}
+                  onChange={(e) => set("estado", e.target.value.toUpperCase())}
+                  minLength={2}
+                  maxLength={2}
+                  required
+                />
+              </Field>
               <div className="md:col-span-2">
                 <Field label="Título" required>
                   <input
@@ -202,6 +266,38 @@ export function ImoveisPage({
                   />
                 </Field>
               </div>
+              <Field label="Rua" required>
+                <input
+                  className={inputCls}
+                  value={form.rua}
+                  onChange={(e) => set("rua", e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Número" required>
+                <input
+                  className={inputCls}
+                  value={form.numero}
+                  onChange={(e) => set("numero", e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Bairro" required>
+                <input
+                  className={inputCls}
+                  value={form.bairro}
+                  onChange={(e) => set("bairro", e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="CEP" required>
+                <input
+                  className={inputCls}
+                  value={form.cep}
+                  onChange={(e) => set("cep", e.target.value)}
+                  required
+                />
+              </Field>
               <Field label="Valor da diária" required>
                 <input
                   className={inputCls}
@@ -241,8 +337,19 @@ export function ImoveisPage({
                   />
                 </Field>
               </div>
+              <div className="md:col-span-2">
+                <Field label="Comodidades (separadas por vírgula)">
+                  <input
+                    className={inputCls}
+                    value={form.comodidades}
+                    onChange={(e) => set("comodidades", e.target.value)}
+                    placeholder="Wi-Fi, Ar-condicionado, Piscina"
+                  />
+                </Field>
+              </div>
             </div>
           </FormCard>
+          {formError && <ErrorMsg msg={formError} />}
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="button"
@@ -357,22 +464,33 @@ export function ImoveisPage({
                     <Badge active={item.ativo} />
                   </td>
                   <td className="px-4 py-4">
-                    {canManage && (
-                      <div className="flex items-center gap-2 justify-end">
+                    <div className="flex items-center gap-2 justify-end">
+                      {onViewDetail && (
                         <button
-                          onClick={() => startEdit(item)}
+                          onClick={() => onViewDetail(item.idImovel)}
                           className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                          title="Ver detalhes"
                         >
-                          <IconEdit />
+                          <IconEye />
                         </button>
-                        <button
-                          onClick={() => handleDelete(item.idImovel)}
-                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <IconTrash />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      {canManage && (
+                        <>
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                          >
+                            <IconEdit />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.idImovel)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <IconTrash />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
