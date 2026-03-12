@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	standardMagic                   = "HST1"
+	payloadVersion                  = uint8(3)
 	entityTypeProperty              = 1
 	entityTypeUser                  = 2
 	entityTypeReservation           = 3
@@ -41,6 +41,9 @@ const (
 	reservationFieldIDPaymentMethod = 8
 	reservationFieldIDPaymentStatus = 9
 	reservationFieldIDConfirmedAt   = 10
+	userTypeAdmin                   = uint8(1)
+	userTypeHost                    = uint8(2)
+	userTypeGuest                   = uint8(3)
 )
 
 type recordField struct {
@@ -70,13 +73,7 @@ func reservationPayloadCodec() payloadCodec[domain.Reservation] {
 }
 
 func encodeProperty(item domain.Property) ([]byte, error) {
-	fields := make([]recordField, 0, 11)
-
-	idData, err := encodeInt32Data(int32(item.ID))
-	if err != nil {
-		return nil, err
-	}
-	fields = append(fields, recordField{id: propertyFieldIDID, data: idData})
+	fields := make([]recordField, 0, 10)
 
 	userIDData, err := encodeInt32Data(int32(item.UserID))
 	if err != nil {
@@ -123,26 +120,17 @@ func encodeProperty(item domain.Property) ([]byte, error) {
 	return encodeStandardPayload(entityTypeProperty, fields)
 }
 
-func decodeProperty(payload []byte) (domain.Property, error) {
+func decodeProperty(payload []byte, id int) (domain.Property, error) {
 	fields, err := decodeStandardPayload(payload, entityTypeProperty)
 	if err == nil {
-		return decodePropertyFromStandard(fields)
+		return decodePropertyFromStandard(fields, id)
 	}
-	return decodePropertyLegacy(payload)
+	return decodePropertyLegacy(payload, id)
 }
 
-func decodePropertyFromStandard(fields map[uint8][]byte) (domain.Property, error) {
+func decodePropertyFromStandard(fields map[uint8][]byte, id int) (domain.Property, error) {
 	var item domain.Property
-
-	idData, err := requiredField(fields, propertyFieldIDID)
-	if err != nil {
-		return domain.Property{}, err
-	}
-	id, err := decodeInt32Data(idData)
-	if err != nil {
-		return domain.Property{}, err
-	}
-	item.ID = int(id)
+	item.ID = id
 
 	userIDData, err := requiredField(fields, propertyFieldIDUserID)
 	if err != nil {
@@ -228,15 +216,15 @@ func decodePropertyFromStandard(fields map[uint8][]byte) (domain.Property, error
 	return item, nil
 }
 
-func decodePropertyLegacy(payload []byte) (domain.Property, error) {
+func decodePropertyLegacy(payload []byte, id int) (domain.Property, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.Property
 
-	id, err := readInt32(reader)
+	legacyID, err := readInt32(reader)
 	if err != nil {
 		return domain.Property{}, err
 	}
-	item.ID = int(id)
+	item.ID = int(legacyID)
 
 	userID, err := readInt32(reader)
 	if err != nil {
@@ -289,17 +277,22 @@ func decodePropertyLegacy(payload []byte) (domain.Property, error) {
 }
 
 func encodeUser(item domain.User) ([]byte, error) {
-	fields := make([]recordField, 0, 6)
+	fields := make([]recordField, 0, 5)
 
-	idData, err := encodeInt32Data(int32(item.ID))
-	if err != nil {
-		return nil, err
-	}
-	fields = append(fields, recordField{id: userFieldIDID, data: idData})
 	fields = append(fields, recordField{id: userFieldIDName, data: []byte(item.Name)})
 	fields = append(fields, recordField{id: userFieldIDEmail, data: []byte(item.Email)})
 	fields = append(fields, recordField{id: userFieldIDPassword, data: []byte(item.Password)})
-	fields = append(fields, recordField{id: userFieldIDType, data: []byte(string(item.Type))})
+
+	var typeEnum uint8
+	switch item.Type {
+	case domain.UserTypeAdmin:
+		typeEnum = userTypeAdmin
+	case domain.UserTypeHost:
+		typeEnum = userTypeHost
+	default:
+		typeEnum = userTypeGuest
+	}
+	fields = append(fields, recordField{id: userFieldIDType, data: []byte{typeEnum}})
 
 	activeData, err := encodeBoolData(item.Active)
 	if err != nil {
@@ -310,26 +303,17 @@ func encodeUser(item domain.User) ([]byte, error) {
 	return encodeStandardPayload(entityTypeUser, fields)
 }
 
-func decodeUser(payload []byte) (domain.User, error) {
+func decodeUser(payload []byte, id int) (domain.User, error) {
 	fields, err := decodeStandardPayload(payload, entityTypeUser)
 	if err == nil {
-		return decodeUserFromStandard(fields)
+		return decodeUserFromStandard(fields, id)
 	}
-	return decodeUserLegacy(payload)
+	return decodeUserLegacy(payload, id)
 }
 
-func decodeUserFromStandard(fields map[uint8][]byte) (domain.User, error) {
+func decodeUserFromStandard(fields map[uint8][]byte, id int) (domain.User, error) {
 	var item domain.User
-
-	idData, err := requiredField(fields, userFieldIDID)
-	if err != nil {
-		return domain.User{}, err
-	}
-	id, err := decodeInt32Data(idData)
-	if err != nil {
-		return domain.User{}, err
-	}
-	item.ID = int(id)
+	item.ID = id
 
 	nameData, err := requiredField(fields, userFieldIDName)
 	if err != nil {
@@ -353,7 +337,18 @@ func decodeUserFromStandard(fields map[uint8][]byte) (domain.User, error) {
 	if err != nil {
 		return domain.User{}, err
 	}
-	item.Type = domain.UserType(string(typeData))
+	if len(typeData) == 1 {
+		switch typeData[0] {
+		case userTypeAdmin:
+			item.Type = domain.UserTypeAdmin
+		case userTypeHost:
+			item.Type = domain.UserTypeHost
+		default:
+			item.Type = domain.UserTypeGuest
+		}
+	} else {
+		item.Type = domain.UserType(string(typeData))
+	}
 
 	activeData, err := requiredField(fields, userFieldIDActive)
 	if err != nil {
@@ -367,15 +362,15 @@ func decodeUserFromStandard(fields map[uint8][]byte) (domain.User, error) {
 	return item, nil
 }
 
-func decodeUserLegacy(payload []byte) (domain.User, error) {
+func decodeUserLegacy(payload []byte, id int) (domain.User, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.User
 
-	id, err := readInt32(reader)
+	legacyID, err := readInt32(reader)
 	if err != nil {
 		return domain.User{}, err
 	}
-	item.ID = int(id)
+	item.ID = int(legacyID)
 
 	item.Name, err = readString(reader)
 	if err != nil {
@@ -403,13 +398,7 @@ func decodeUserLegacy(payload []byte) (domain.User, error) {
 }
 
 func encodeReservation(item domain.Reservation) ([]byte, error) {
-	fields := make([]recordField, 0, 10)
-
-	idData, err := encodeInt32Data(int32(item.ID))
-	if err != nil {
-		return nil, err
-	}
-	fields = append(fields, recordField{id: reservationFieldIDID, data: idData})
+	fields := make([]recordField, 0, 9)
 
 	propertyIDData, err := encodeInt32Data(int32(item.PropertyID))
 	if err != nil {
@@ -439,26 +428,17 @@ func encodeReservation(item domain.Reservation) ([]byte, error) {
 	return encodeStandardPayload(entityTypeReservation, fields)
 }
 
-func decodeReservation(payload []byte) (domain.Reservation, error) {
+func decodeReservation(payload []byte, id int) (domain.Reservation, error) {
 	fields, err := decodeStandardPayload(payload, entityTypeReservation)
 	if err == nil {
-		return decodeReservationFromStandard(fields)
+		return decodeReservationFromStandard(fields, id)
 	}
-	return decodeReservationLegacy(payload)
+	return decodeReservationLegacy(payload, id)
 }
 
-func decodeReservationFromStandard(fields map[uint8][]byte) (domain.Reservation, error) {
+func decodeReservationFromStandard(fields map[uint8][]byte, id int) (domain.Reservation, error) {
 	var item domain.Reservation
-
-	idData, err := requiredField(fields, reservationFieldIDID)
-	if err != nil {
-		return domain.Reservation{}, err
-	}
-	id, err := decodeInt32Data(idData)
-	if err != nil {
-		return domain.Reservation{}, err
-	}
-	item.ID = int(id)
+	item.ID = id
 
 	propertyIDData, err := requiredField(fields, reservationFieldIDPropertyID)
 	if err != nil {
@@ -519,15 +499,15 @@ func decodeReservationFromStandard(fields map[uint8][]byte) (domain.Reservation,
 	return item, nil
 }
 
-func decodeReservationLegacy(payload []byte) (domain.Reservation, error) {
+func decodeReservationLegacy(payload []byte, id int) (domain.Reservation, error) {
 	reader := bytes.NewReader(payload)
 	var item domain.Reservation
 
-	id, err := readInt32(reader)
+	legacyID, err := readInt32(reader)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
-	item.ID = int(id)
+	item.ID = int(legacyID)
 
 	propertyID, err := readInt32(reader)
 	if err != nil {
@@ -565,7 +545,7 @@ func encodeStandardPayload(entityType uint8, fields []recordField) ([]byte, erro
 	}
 
 	buf := &bytes.Buffer{}
-	if _, err := buf.WriteString(standardMagic); err != nil {
+	if err := buf.WriteByte(payloadVersion); err != nil {
 		return nil, err
 	}
 	if err := buf.WriteByte(entityType); err != nil {
@@ -579,7 +559,7 @@ func encodeStandardPayload(entityType uint8, fields []recordField) ([]byte, erro
 		if err := buf.WriteByte(field.id); err != nil {
 			return nil, err
 		}
-		if err := writeUint32(buf, uint32(len(field.data))); err != nil {
+		if err := writeUint16(buf, uint16(len(field.data))); err != nil {
 			return nil, err
 		}
 		if _, err := buf.Write(field.data); err != nil {
@@ -591,13 +571,65 @@ func encodeStandardPayload(entityType uint8, fields []recordField) ([]byte, erro
 }
 
 func decodeStandardPayload(payload []byte, expectedEntityType uint8) (map[uint8][]byte, error) {
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("payload vazio")
+	}
+	if payload[0] == 'H' {
+		return decodeHST1Payload(payload, expectedEntityType)
+	}
+	if payload[0] != payloadVersion {
+		return nil, fmt.Errorf("formato legado")
+	}
+
+	reader := bytes.NewReader(payload)
+	reader.ReadByte() // consume version byte
+
+	entityType, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if entityType != expectedEntityType {
+		return nil, fmt.Errorf("tipo de entidade invalido")
+	}
+
+	fieldCount, err := readUint16(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := make(map[uint8][]byte, fieldCount)
+	for i := uint16(0); i < fieldCount; i++ {
+		fieldID, err := reader.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+
+		size, err := readUint16(reader)
+		if err != nil {
+			return nil, err
+		}
+		if uint32(size) > uint32(reader.Len()) {
+			return nil, fmt.Errorf("tamanho de campo invalido")
+		}
+
+		data := make([]byte, size)
+		if _, err := io.ReadFull(reader, data); err != nil {
+			return nil, err
+		}
+		fields[fieldID] = data
+	}
+
+	return fields, nil
+}
+
+func decodeHST1Payload(payload []byte, expectedEntityType uint8) (map[uint8][]byte, error) {
 	reader := bytes.NewReader(payload)
 
-	magic := make([]byte, len(standardMagic))
+	magic := make([]byte, 4)
 	if _, err := io.ReadFull(reader, magic); err != nil {
 		return nil, err
 	}
-	if string(magic) != standardMagic {
+	if string(magic) != "HST1" {
 		return nil, fmt.Errorf("payload em formato legado")
 	}
 

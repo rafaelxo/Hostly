@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	fileVersion    = uint8(2)
+	fileVersion    = uint8(3)
 	fileHeaderSize = 9
 	recordMetaSize = 9
 )
@@ -28,7 +28,7 @@ type recordMeta struct {
 
 type payloadCodec[T any] struct {
 	encode func(T) ([]byte, error)
-	decode func([]byte) (T, error)
+	decode func([]byte, int) (T, error)
 }
 
 type binaryEntityStore[T any] struct {
@@ -78,10 +78,8 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 		if _, err := io.ReadFull(file, vbuf); err == nil && vbuf[0] == fileVersion {
 			return nil
 		}
-		log.Printf("aviso: %s em formato incompativel, resetando para versao %d", s.path, fileVersion)
-		if err := file.Truncate(0); err != nil {
-			return err
-		}
+		log.Printf("aviso: %s em formato antigo, migrando para versao %d", s.path, fileVersion)
+		return s.migrateFile(file)
 	} else if info.Size() > 0 {
 		log.Printf("aviso: %s com cabecalho incompleto, resetando", s.path)
 		if err := file.Truncate(0); err != nil {
@@ -90,6 +88,38 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	}
 
 	return writeHeader(file, fileHeader{})
+}
+
+func (s *binaryEntityStore[T]) migrateFile(file *os.File) error {
+	oldHeader, err := readHeader(file)
+	if err != nil {
+		return err
+	}
+
+	items, err := scanActiveRecords(file, s.codec)
+	if err != nil {
+		return err
+	}
+
+	if err := file.Truncate(0); err != nil {
+		return err
+	}
+
+	if err := writeHeader(file, fileHeader{LastID: oldHeader.LastID, Count: int32(len(items))}); err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		payload, err := s.codec.encode(item)
+		if err != nil {
+			return err
+		}
+		if err := appendRecord(file, false, s.getID(item), payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *binaryEntityStore[T]) nextID() (int, error) {
@@ -397,6 +427,7 @@ func scanActiveRecords[T any](file *os.File, codec payloadCodec[T]) ([]T, error)
 		}
 
 		deleted := headerBuf[0] == 1
+		recordID := int(binary.LittleEndian.Uint32(headerBuf[1:5]))
 		size := binary.LittleEndian.Uint32(headerBuf[5:9])
 
 		payload := make([]byte, size)
@@ -408,7 +439,7 @@ func scanActiveRecords[T any](file *os.File, codec payloadCodec[T]) ([]T, error)
 			continue
 		}
 
-		item, err := codec.decode(payload)
+		item, err := codec.decode(payload, recordID)
 		if err != nil {
 			log.Printf("aviso: registro corrompido ignorado: %v", err)
 			continue
@@ -466,7 +497,7 @@ func findRecordByID[T any](
 			return recordMeta{}, zero, err
 		}
 
-		item, err := codec.decode(payload)
+		item, err := codec.decode(payload, recordID)
 		if err != nil {
 			var zero T
 			return recordMeta{}, zero, err
