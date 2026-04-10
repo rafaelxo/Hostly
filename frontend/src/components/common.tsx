@@ -61,7 +61,9 @@ export const FormHeader = ({
       <IconArrowLeft />
     </button>
     <div>
-      <h1 className="text-2xl font-bold text-[var(--hostly-text)] tracking-tight">{title}</h1>
+      <h1 className="text-2xl font-bold text-[var(--hostly-text)] tracking-tight">
+        {title}
+      </h1>
       <p className="text-sm text-[var(--hostly-muted)] mt-0.5">{subtitle}</p>
     </div>
   </div>

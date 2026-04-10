@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ErrorMsg, Spinner } from "../components/common";
 import { IconArrowLeft, IconCalendar, IconEdit } from "../components/icons";
-import { geocodePropertyAddress } from "../services/geocoding";
 import { imoveisService, type Imovel } from "../services/api";
+import { geocodePropertyAddress } from "../services/geocoding";
 
 const _proto = L.Icon.Default.prototype as unknown as Record<string, unknown>;
 delete _proto._getIconUrl;

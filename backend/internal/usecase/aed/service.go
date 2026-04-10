@@ -33,17 +33,17 @@ type PropertyWithReservations struct {
 }
 
 type HostRelationship struct {
-	HostID                int                        `json:"idAnfitriao"`
-	QuantidadeImoveis     int                        `json:"quantidadeImoveis"`
-	QuantidadeReservas    int                        `json:"quantidadeReservas"`
-	ImoveisComReservas    []PropertyWithReservations `json:"imoveisComReservas"`
+	HostID             int                        `json:"idAnfitriao"`
+	QuantidadeImoveis  int                        `json:"quantidadeImoveis"`
+	QuantidadeReservas int                        `json:"quantidadeReservas"`
+	ImoveisComReservas []PropertyWithReservations `json:"imoveisComReservas"`
 }
 
 type ExternalSortMetadata struct {
-	Atributo        string `json:"atributo"`
-	Ordem           string `json:"ordem"`
-	RunsGeradas     int    `json:"runsGeradas"`
-	RegistrosOrdenados int `json:"registrosOrdenados"`
+	Atributo           string `json:"atributo"`
+	Ordem              string `json:"ordem"`
+	RunsGeradas        int    `json:"runsGeradas"`
+	RegistrosOrdenados int    `json:"registrosOrdenados"`
 }
 
 type ExternalSortResult struct {
@@ -52,8 +52,8 @@ type ExternalSortResult struct {
 }
 
 type BPlusTreeStats struct {
-	Ordem      int `json:"ordem"`
-	Altura     int `json:"altura"`
+	Ordem            int `json:"ordem"`
+	Altura           int `json:"altura"`
 	QuantidadeChaves int `json:"quantidadeChaves"`
 	QuantidadeFolhas int `json:"quantidadeFolhas"`
 }

@@ -66,8 +66,10 @@ const scoreCandidate = (
 
   if (targetCity && candCity && targetCity === candCity) score += 40;
   if (targetState && candState && targetState === candState) score += 25;
-  if (targetStreet && candStreet && candStreet.includes(targetStreet)) score += 20;
-  if (targetPostcode && candPostcode && targetPostcode === candPostcode) score += 60;
+  if (targetStreet && candStreet && candStreet.includes(targetStreet))
+    score += 20;
+  if (targetPostcode && candPostcode && targetPostcode === candPostcode)
+    score += 60;
 
   score += (candidate.importance ?? 0) * 20;
   score += (candidate.place_rank ?? 0) / 10;
@@ -127,7 +129,9 @@ export async function geocodeFreeText(query: string): Promise<Coords | null> {
   return coords;
 }
 
-export async function geocodePropertyAddress(imovel: Imovel): Promise<Coords | null> {
+export async function geocodePropertyAddress(
+  imovel: Imovel,
+): Promise<Coords | null> {
   if (
     Number.isFinite(imovel.latitude) &&
     Number.isFinite(imovel.longitude) &&
@@ -151,8 +155,7 @@ export async function geocodePropertyAddress(imovel: Imovel): Promise<Coords | n
 
   const cep = normalizeCep(postcode);
   if (cep.length >= 8) {
-    const byCep =
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&postalcode=${encodeURIComponent(cep)}`;
+    const byCep = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&postalcode=${encodeURIComponent(cep)}`;
     candidatesSets.push(await fetchCandidates(byCep));
   }
 
@@ -175,14 +178,12 @@ export async function geocodePropertyAddress(imovel: Imovel): Promise<Coords | n
   const fullAddress = [street, address?.bairro, city, state, "Brasil"]
     .filter(Boolean)
     .join(", ");
-  const byQuery =
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&dedupe=1&q=${encodeURIComponent(fullAddress)}`;
+  const byQuery = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&dedupe=1&q=${encodeURIComponent(fullAddress)}`;
   candidatesSets.push(await fetchCandidates(byQuery));
 
   const fallbackCity = [city, state, "Brasil"].filter(Boolean).join(", ");
   if (fallbackCity) {
-    const cityQuery =
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&dedupe=1&q=${encodeURIComponent(fallbackCity)}`;
+    const cityQuery = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=br&limit=8&dedupe=1&q=${encodeURIComponent(fallbackCity)}`;
     candidatesSets.push(await fetchCandidates(cityQuery));
   }
 

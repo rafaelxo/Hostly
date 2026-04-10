@@ -17,8 +17,8 @@ import {
   IconTrash,
 } from "../components/icons";
 import { useUsuarios } from "../hooks/useData";
-import { geocodeAddressInput } from "../services/geocoding";
 import { imoveisService, type Imovel } from "../services/api";
+import { geocodeAddressInput } from "../services/geocoding";
 
 type View = "list" | "new" | "edit";
 

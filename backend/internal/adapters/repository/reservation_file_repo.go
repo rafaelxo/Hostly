@@ -4,6 +4,7 @@ import (
 	"backend/internal/domain"
 	"sync"
 )
+
 type ReservationFileRepository struct {
 	store   *binaryEntityStore[domain.Reservation]
 	pending map[int]domain.Reservation

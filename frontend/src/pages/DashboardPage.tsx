@@ -3,13 +3,13 @@ import "leaflet/dist/leaflet.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 import { ErrorMsg, Spinner } from "../components/common";
-import { geocodeFreeText, geocodePropertyAddress } from "../services/geocoding";
 import {
   imoveisService,
   reservaService,
   type Imovel,
   type Reserva,
 } from "../services/api";
+import { geocodeFreeText, geocodePropertyAddress } from "../services/geocoding";
 
 const _proto = L.Icon.Default.prototype as unknown as Record<string, unknown>;
 delete _proto._getIconUrl;

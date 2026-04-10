@@ -2,8 +2,8 @@ package web
 
 import (
 	"backend/internal/adapters/web/handler"
-	authuc "backend/internal/usecase/auth"
 	aeduc "backend/internal/usecase/aed"
+	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"

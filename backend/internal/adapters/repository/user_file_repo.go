@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"strings"
 	"backend/internal/domain"
+	"strings"
 )
 
 type UserFileRepository struct {

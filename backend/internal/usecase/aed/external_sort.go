@@ -21,9 +21,9 @@ func (s *service) ExternalSortProperties(attribute string, asc bool) (ExternalSo
 	if len(items) == 0 {
 		return ExternalSortResult{
 			Metadados: ExternalSortMetadata{
-				Atributo:          sanitized,
-				Ordem:             sortOrderLabel(asc),
-				RunsGeradas:       0,
+				Atributo:           sanitized,
+				Ordem:              sortOrderLabel(asc),
+				RunsGeradas:        0,
 				RegistrosOrdenados: 0,
 			},
 			Itens: []domain.Property{},
@@ -35,9 +35,9 @@ func (s *service) ExternalSortProperties(attribute string, asc bool) (ExternalSo
 
 	return ExternalSortResult{
 		Metadados: ExternalSortMetadata{
-			Atributo:          sanitized,
-			Ordem:             sortOrderLabel(asc),
-			RunsGeradas:       len(runs),
+			Atributo:           sanitized,
+			Ordem:              sortOrderLabel(asc),
+			RunsGeradas:        len(runs),
 			RegistrosOrdenados: len(merged),
 		},
 		Itens: merged,

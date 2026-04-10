@@ -11,8 +11,8 @@ type bplusNode struct {
 }
 
 type bplusTree struct {
-	order int
-	root  *bplusNode
+	order  int
+	root   *bplusNode
 	height int
 }
 

@@ -8,11 +8,11 @@ type hashBucket struct {
 }
 
 type extensibleHashIndex struct {
-	bucketSize int
-	globalDepth int
-	directory   []int
+	bucketSize   int
+	globalDepth  int
+	directory    []int
 	nextBucketID int
-	buckets     map[int]*hashBucket
+	buckets      map[int]*hashBucket
 }
 
 type HashIndexStats struct {
@@ -27,9 +27,9 @@ func newExtensibleHashIndex(bucketSize int) *extensibleHashIndex {
 	}
 
 	h := &extensibleHashIndex{
-		bucketSize:  bucketSize,
-		globalDepth: 1,
-		directory:   make([]int, 2),
+		bucketSize:   bucketSize,
+		globalDepth:  1,
+		directory:    make([]int, 2),
 		nextBucketID: 2,
 		buckets: map[int]*hashBucket{
 			0: {localDepth: 1, entries: make(map[int]int64)},

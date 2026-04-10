@@ -420,12 +420,19 @@ const Header = ({
 }) => (
   <header
     className="app-header fixed top-4 z-20 h-16 rounded-2xl flex items-center gap-4 px-6 transition-all duration-300"
-    style={{ left: contentLeft + CONTENT_OUTER_GUTTER, right: LAYOUT_GAP + CONTENT_OUTER_GUTTER }}
+    style={{
+      left: contentLeft + CONTENT_OUTER_GUTTER,
+      right: LAYOUT_GAP + CONTENT_OUTER_GUTTER,
+    }}
   >
     <div className="flex-1 min-w-0">
-      <h2 className="font-bold text-[var(--hostly-text)] tracking-tight truncate">{title}</h2>
+      <h2 className="font-bold text-[var(--hostly-text)] tracking-tight truncate">
+        {title}
+      </h2>
       {subtitle && (
-        <p className="text-xs text-[var(--hostly-muted)] mt-0.5 truncate">{subtitle}</p>
+        <p className="text-xs text-[var(--hostly-muted)] mt-0.5 truncate">
+          {subtitle}
+        </p>
       )}
     </div>
   </header>
@@ -591,8 +598,9 @@ export default function App() {
   const sidebarWidth = collapsed
     ? SIDEBAR_WIDTH_COLLAPSED
     : SIDEBAR_WIDTH_EXPANDED;
-  const contentLeft = sidebarWidth + LAYOUT_GAP*2;
-  const headerTitle = viewingImovelId !== null ? "Detalhes do Imóvel" : PAGE_TITLES[page];
+  const contentLeft = sidebarWidth + LAYOUT_GAP * 2;
+  const headerTitle =
+    viewingImovelId !== null ? "Detalhes do Imóvel" : PAGE_TITLES[page];
   const headerSubtitle =
     viewingImovelId !== null
       ? "Visualização completa do imóvel selecionado"
@@ -709,7 +717,11 @@ export default function App() {
         className="transition-all duration-300"
         style={{ marginLeft: contentLeft }}
       >
-        <Header title={headerTitle} subtitle={headerSubtitle} contentLeft={contentLeft} />
+        <Header
+          title={headerTitle}
+          subtitle={headerSubtitle}
+          contentLeft={contentLeft}
+        />
         <main className="pt-24 min-h-screen pb-6">
           <div className="w-full px-6">
             <div className="app-main-surface">{renderPage()}</div>
