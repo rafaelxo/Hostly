@@ -2,6 +2,7 @@ package handler
 
 import (
 	"backend/internal/domain"
+	aeduc "backend/internal/usecase/aed"
 	"backend/internal/usecase/property"
 	"encoding/json"
 	"net/http"
@@ -25,6 +26,8 @@ type createPropertyRequest struct {
 		Description string `json:"descricao"`
 	} `json:"comodidades"`
 	City      string   `json:"cidade"`
+	Latitude  float64  `json:"latitude"`
+	Longitude float64  `json:"longitude"`
 	DailyRate float64  `json:"valorDiaria"`
 	CreatedAt string   `json:"dataCadastro"`
 	Photos    []string `json:"fotos"`
@@ -48,6 +51,8 @@ type propertyUpdatePayload struct {
 		Description string `json:"descricao"`
 	} `json:"comodidades"`
 	City      *string   `json:"cidade"`
+	Latitude  *float64  `json:"latitude"`
+	Longitude *float64  `json:"longitude"`
 	DailyRate *float64  `json:"valorDiaria"`
 	CreatedAt *string   `json:"dataCadastro"`
 	Photos    *[]string `json:"fotos"`
@@ -55,14 +60,46 @@ type propertyUpdatePayload struct {
 }
 
 type PropertyHandler struct {
-	svc property.Service
+	svc    property.Service
+	aedSvc aeduc.Service
 }
 
-func NewPropertyHandler(svc property.Service) *PropertyHandler {
-	return &PropertyHandler{svc: svc}
+func NewPropertyHandler(svc property.Service, aedSvc aeduc.Service) *PropertyHandler {
+	return &PropertyHandler{svc: svc, aedSvc: aedSvc}
 }
 
 func (h *PropertyHandler) List(w http.ResponseWriter, r *http.Request) {
+	if h.aedSvc != nil {
+		query := r.URL.Query()
+
+		if rawDailyRate := query.Get("valorDiaria"); rawDailyRate != "" {
+			dailyRate, err := strconv.ParseFloat(rawDailyRate, 64)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, err)
+				return
+			}
+
+			searchResult, err := h.aedSvc.SearchPropertiesByDailyRateBPlus(dailyRate)
+			if err != nil {
+				respondDomainError(w, err)
+				return
+			}
+			respondJSON(w, http.StatusOK, searchResult.Imoveis)
+			return
+		}
+
+		if sortBy := query.Get("ordenarPor"); sortBy != "" {
+			asc := query.Get("ordem") != "desc"
+			result, err := h.aedSvc.ExternalSortProperties(sortBy, asc)
+			if err != nil {
+				respondDomainError(w, err)
+				return
+			}
+			respondJSON(w, http.StatusOK, result.Itens)
+			return
+		}
+	}
+
 	items, err := h.svc.GetAll()
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
@@ -100,6 +137,8 @@ func (h *PropertyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Address:     toDomainAddress(req.Address),
 		Amenities:   toDomainAmenities(req.Amenities),
 		City:        req.City,
+		Latitude:    req.Latitude,
+		Longitude:   req.Longitude,
 		DailyRate:   req.DailyRate,
 		CreatedAt:   req.CreatedAt,
 		Photos:      req.Photos,
@@ -145,6 +184,8 @@ func (h *PropertyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Address:     toDomainAddressPtr(payload.Address),
 		Amenities:   toDomainAmenitiesPtr(payload.Amenities),
 		City:        payload.City,
+		Latitude:    payload.Latitude,
+		Longitude:   payload.Longitude,
 		DailyRate:   payload.DailyRate,
 		CreatedAt:   payload.CreatedAt,
 		Photos:      payload.Photos,

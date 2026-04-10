@@ -3,14 +3,13 @@ package repository
 import (
 	"strings"
 	"backend/internal/domain"
-	useruc "backend/internal/usecase/user"
 )
 
 type UserFileRepository struct {
 	store *binaryEntityStore[domain.User]
 }
 
-func NewUserFileRepository(path string) (useruc.Repository, error) {
+func NewUserFileRepository(path string) (*UserFileRepository, error) {
 	store, err := newBinaryEntityStore(
 		path,
 		func(u domain.User) int { return u.ID },
@@ -21,6 +20,10 @@ func NewUserFileRepository(path string) (useruc.Repository, error) {
 		return nil, err
 	}
 	return &UserFileRepository{store: store}, nil
+}
+
+func (r *UserFileRepository) HashStats() HashIndexStats {
+	return r.store.HashStats()
 }
 
 func (r *UserFileRepository) Create(item domain.User) (domain.User, error) {

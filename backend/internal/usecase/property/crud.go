@@ -12,6 +12,8 @@ type PropertyPatch struct {
 	Address     *domain.Address
 	Amenities   *[]domain.Amenity
 	City        *string
+	Latitude    *float64
+	Longitude   *float64
 	DailyRate   *float64
 	CreatedAt   *string
 	Photos      *[]string
@@ -131,6 +133,12 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	}
 	if p.City != nil {
 		existing.City = *p.City
+	}
+	if p.Latitude != nil {
+		existing.Latitude = *p.Latitude
+	}
+	if p.Longitude != nil {
+		existing.Longitude = *p.Longitude
 	}
 	if p.DailyRate != nil {
 		existing.DailyRate = *p.DailyRate

@@ -4,6 +4,7 @@ import (
 	"backend/internal/adapters/payment"
 	"backend/internal/adapters/repository"
 	web "backend/internal/adapters/web"
+	aeduc "backend/internal/usecase/aed"
 	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
@@ -32,6 +33,22 @@ func main() {
 	userService := useruc.NewService(userRepo)
 	paymentGateway := payment.NewSimulatedGateway()
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
+	aedService := aeduc.NewService(
+		propertyService,
+		reservationService,
+		func() aeduc.HashStats {
+			stats := propertyRepo.HashStats()
+			return aeduc.HashStats{GlobalDepth: stats.GlobalDepth, Buckets: stats.Buckets, Entries: stats.Entries}
+		},
+		func() aeduc.HashStats {
+			stats := userRepo.HashStats()
+			return aeduc.HashStats{GlobalDepth: stats.GlobalDepth, Buckets: stats.Buckets, Entries: stats.Entries}
+		},
+		func() aeduc.HashStats {
+			stats := reservationRepo.HashStats()
+			return aeduc.HashStats{GlobalDepth: stats.GlobalDepth, Buckets: stats.Buckets, Entries: stats.Entries}
+		},
+	)
 	authService := authuc.NewService(userService, propertyService)
 
 	if _, err := authService.SeedDefaultAdmin(); err != nil {
@@ -43,6 +60,7 @@ func main() {
 		UserService:        userService,
 		ReservationService: reservationService,
 		AuthService:        authService,
+		AEDService:         aedService,
 	})
 
 	addr := ":8080"

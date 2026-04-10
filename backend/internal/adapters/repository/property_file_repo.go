@@ -1,15 +1,12 @@
 package repository
 
-import (
-	"backend/internal/domain"
-	"backend/internal/usecase/property"
-)
+import "backend/internal/domain"
 
 type PropertyFileRepository struct {
 	store *binaryEntityStore[domain.Property]
 }
 
-func NewPropertyFileRepository(path string) (property.Repository, error) {
+func NewPropertyFileRepository(path string) (*PropertyFileRepository, error) {
 	store, err := newBinaryEntityStore(
 		path,
 		func(p domain.Property) int { return p.ID },
@@ -20,6 +17,10 @@ func NewPropertyFileRepository(path string) (property.Repository, error) {
 		return nil, err
 	}
 	return &PropertyFileRepository{store: store}, nil
+}
+
+func (r *PropertyFileRepository) HashStats() HashIndexStats {
+	return r.store.HashStats()
 }
 
 func (r *PropertyFileRepository) Create(item domain.Property) (domain.Property, error) {

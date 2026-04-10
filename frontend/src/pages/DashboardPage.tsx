@@ -3,6 +3,7 @@ import "leaflet/dist/leaflet.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
 import { ErrorMsg, Spinner } from "../components/common";
+import { geocodeFreeText, geocodePropertyAddress } from "../services/geocoding";
 import {
   imoveisService,
   reservaService,
@@ -28,20 +29,6 @@ function createPinIcon(available: boolean, selected: boolean) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size],
   });
-}
-
-async function geocodeQuery(q: string): Promise<[number, number] | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
-      { headers: { "User-Agent": "Hostly-App/1.0" } },
-    );
-    const data = (await res.json()) as { lat: string; lon: string }[];
-    if (data[0]) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-  } catch {
-    //
-  }
-  return null;
 }
 
 function MapFlyTo({ target }: { target: [number, number] | null }) {
@@ -282,20 +269,9 @@ function RegionMap({
       for (const item of ungeocoded) {
         if (cancelled) break;
         geocodedIds.current.add(item.idImovel);
-        const addr = item.endereco;
-        const queries = addr
-          ? [
-              `${addr.rua} ${addr.numero}, ${addr.bairro}, ${addr.cidade}, ${addr.estado}, Brasil`,
-              `${addr.cidade}, ${addr.estado}, Brasil`,
-            ]
-          : [`${item.cidade}, Brasil`];
-
-        for (const q of queries) {
-          const result = await geocodeQuery(q);
-          if (result) {
-            setCoords((prev) => ({ ...prev, [item.idImovel]: result }));
-            break;
-          }
+        const result = await geocodePropertyAddress(item);
+        if (result) {
+          setCoords((prev) => ({ ...prev, [item.idImovel]: result }));
         }
         await new Promise((r) => setTimeout(r, 350));
       }
@@ -309,7 +285,7 @@ function RegionMap({
   const handleSearch = async () => {
     const q = addressInput.trim();
     if (!q) return;
-    const result = await geocodeQuery(q);
+    const result = await geocodeFreeText(q);
     if (result) setMapTarget(result);
   };
 
@@ -317,21 +293,19 @@ function RegionMap({
     imoveis.find((i) => i.idImovel === selectedPropertyId) ?? null;
 
   return (
-    <section className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
-      {/* */}
-      <div className="px-5 py-4 border-b border-stone-100 space-y-3">
+    <section className="card-elevated overflow-hidden">
+      <div className="px-5 py-4 border-b border-[var(--hostly-border)] space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-stone-700">
+          <h3 className="text-sm font-semibold text-[var(--hostly-text)]">
             Mapa de imóveis
           </h3>
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-[var(--hostly-muted)]">
             Pesquise um endereço para navegar; clique num pin para ver detalhes
             do imóvel. Verde = disponível, cinza = ocupado.
           </p>
         </div>
 
-        {/* */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-2">
           <input
             type="text"
             value={addressInput}
@@ -340,37 +314,36 @@ function RegionMap({
               if (e.key === "Enter") void handleSearch();
             }}
             placeholder="Buscar endereço ou cidade…"
-            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+            className="h-11 bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-3 py-2 text-sm text-[var(--hostly-text)] focus:outline-none focus:ring-2 focus:ring-[var(--hostly-focus)]"
           />
           <button
             onClick={() => void handleSearch()}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm"
+            className="h-11 px-5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm font-semibold transition-colors shadow-sm"
           >
             Buscar
           </button>
         </div>
 
-        {/* */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
           <input
             type="date"
             value={dataInicio}
             onChange={(e) => handleStartChange(e.target.value)}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700"
+            className="h-11 bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-3 py-2 text-sm text-[var(--hostly-text)]"
           />
           <input
             type="date"
             value={dataFim}
             min={dataInicio}
             onChange={(e) => handleEndChange(e.target.value)}
-            className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-700"
+            className="h-11 bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-3 py-2 text-sm text-[var(--hostly-text)]"
           />
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between">
+          <div className="h-11 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between">
             <div>
-              <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wider">
+              <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-[0.12em]">
                 Média diária (disponíveis)
               </p>
-              <p className="text-sm font-semibold text-amber-700">
+              <p className="text-sm font-bold text-amber-700 leading-none mt-0.5">
                 {ptBrCurrency(mediaDiaria)}
               </p>
             </div>
@@ -466,11 +439,11 @@ export function DashboardPage({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
-        <h1 className="text-xl font-semibold text-stone-800">
+      <div className="card-elevated p-5">
+        <h1 className="text-xl font-bold text-[var(--hostly-text)] tracking-tight">
           Visão por região e disponibilidade
         </h1>
-        <p className="text-sm text-stone-400 mt-1">
+        <p className="text-sm text-[var(--hostly-muted)] mt-1">
           Pesquise um endereço para navegar no mapa. Os imóveis aparecem como
           pins — clique para ver detalhes e disponibilidade.
         </p>

@@ -17,6 +17,7 @@ import {
   IconTrash,
 } from "../components/icons";
 import { useUsuarios } from "../hooks/useData";
+import { geocodeAddressInput } from "../services/geocoding";
 import { imoveisService, type Imovel } from "../services/api";
 
 type View = "list" | "new" | "edit";
@@ -74,6 +75,11 @@ export function ImoveisPage({
   const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [search, setSearch] = useState("");
+  const [ordenarPor, setOrdenarPor] = useState<
+    "" | "valorDiaria" | "cidade" | "dataCadastro" | "titulo"
+  >("");
+  const [ordem, setOrdem] = useState<"asc" | "desc">("asc");
+  const [filtroValorDiaria, setFiltroValorDiaria] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -86,7 +92,14 @@ export function ImoveisPage({
       const data =
         typeof ownerId === "number"
           ? await imoveisService.getByOwner(ownerId)
-          : await imoveisService.getAll();
+          : await imoveisService.getAll({
+              ordenarPor: ordenarPor || undefined,
+              ordem,
+              valorDiaria:
+                filtroValorDiaria.trim() !== ""
+                  ? Number(filtroValorDiaria)
+                  : undefined,
+            });
       setImoveis(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro desconhecido");
@@ -97,7 +110,7 @@ export function ImoveisPage({
 
   useEffect(() => {
     void refetch();
-  }, [ownerId]);
+  }, [ownerId, ordenarPor, ordem, filtroValorDiaria]);
 
   const filtered = useMemo(
     () =>
@@ -171,6 +184,18 @@ export function ImoveisPage({
 
     setSaving(true);
     try {
+      const coords = await geocodeAddressInput(
+        {
+          rua: form.rua,
+          numero: form.numero,
+          bairro: form.bairro,
+          cidade: form.cidade,
+          estado: form.estado,
+          cep: form.cep,
+        },
+        form.cidade,
+      );
+
       const payload = {
         idUsuario: Number(form.idUsuario),
         titulo: form.titulo,
@@ -189,6 +214,8 @@ export function ImoveisPage({
           .filter(Boolean)
           .map((nome) => ({ nome })),
         cidade: form.cidade,
+        latitude: coords?.[0] ?? 0,
+        longitude: coords?.[1] ?? 0,
         valorDiaria: Number(form.valorDiaria),
         dataCadastro: new Date().toISOString().slice(0, 10),
         fotos,
@@ -380,7 +407,7 @@ export function ImoveisPage({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
+      <div className="card-elevated p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
             <h3 className="text-base font-semibold text-stone-800">{title}</h3>
@@ -398,7 +425,7 @@ export function ImoveisPage({
           )}
         </div>
 
-        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5">
+        <div className="flex items-center gap-2 bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-4 py-2.5">
           <span className="text-stone-400">
             <IconSearch />
           </span>
@@ -409,12 +436,57 @@ export function ImoveisPage({
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
+        {typeof ownerId !== "number" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <select
+              className={inputCls}
+              value={ordenarPor}
+              onChange={(e) =>
+                setOrdenarPor(
+                  e.target.value as
+                    | ""
+                    | "valorDiaria"
+                    | "cidade"
+                    | "dataCadastro"
+                    | "titulo",
+                )
+              }
+            >
+              <option value="">Sem ordenacao</option>
+              <option value="titulo">Titulo</option>
+              <option value="cidade">Cidade</option>
+              <option value="valorDiaria">Valor da diaria</option>
+              <option value="dataCadastro">Data de cadastro</option>
+            </select>
+
+            <select
+              className={inputCls}
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as "asc" | "desc")}
+              disabled={!ordenarPor}
+            >
+              <option value="asc">Ordem crescente</option>
+              <option value="desc">Ordem decrescente</option>
+            </select>
+
+            <input
+              className={inputCls}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Filtrar por diaria exata"
+              value={filtroValorDiaria}
+              onChange={(e) => setFiltroValorDiaria(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
       {filtered.length > 0 && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="card-elevated overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-stone-100">

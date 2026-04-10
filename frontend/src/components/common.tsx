@@ -3,12 +3,12 @@ import { IconArrowLeft } from "./icons";
 
 export const Spinner = () => (
   <div className="flex items-center justify-center py-16">
-    <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-500 rounded-full animate-spin"></div>
+    <div className="w-9 h-9 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
   </div>
 );
 
 export const ErrorMsg = ({ msg }: { msg: string }) => (
-  <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-5 py-4 text-sm">
+  <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl px-5 py-4 text-sm font-medium">
     {msg}
   </div>
 );
@@ -22,7 +22,7 @@ export const Badge = ({ active }: { active: boolean }) => (
 );
 
 export const inputCls =
-  "w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 placeholder-stone-400 outline-none focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 transition-all";
+  "w-full bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--hostly-text)] placeholder:text-[var(--hostly-muted)] outline-none focus:border-[var(--hostly-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hostly-focus)] transition-all";
 
 export const Field = ({
   label,
@@ -56,13 +56,13 @@ export const FormHeader = ({
   <div className="flex items-start gap-4 mb-8">
     <button
       onClick={onBack}
-      className="mt-1 p-2 rounded-xl border border-stone-200 text-stone-400 hover:text-stone-700 hover:border-stone-300 transition-colors"
+      className="mt-1 p-2 rounded-xl border border-[var(--hostly-border)] bg-white text-[var(--hostly-muted)] hover:text-[var(--hostly-text)] hover:border-stone-300 transition-colors"
     >
       <IconArrowLeft />
     </button>
     <div>
-      <h1 className="text-xl font-semibold text-stone-800">{title}</h1>
-      <p className="text-sm text-stone-400 mt-0.5">{subtitle}</p>
+      <h1 className="text-2xl font-bold text-[var(--hostly-text)] tracking-tight">{title}</h1>
+      <p className="text-sm text-[var(--hostly-muted)] mt-0.5">{subtitle}</p>
     </div>
   </div>
 );
@@ -74,9 +74,9 @@ export const FormCard = ({
   title?: string;
   children: ReactNode;
 }) => (
-  <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6">
+  <div className="card-elevated p-6">
     {title && (
-      <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-5">
+      <h3 className="text-xs font-semibold text-[var(--hostly-muted)] uppercase tracking-[0.14em] mb-5">
         {title}
       </h3>
     )}

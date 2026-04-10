@@ -137,6 +137,38 @@ func (s *service) GetByHostID(hostID int) ([]domain.Reservation, error) {
 	return filtered, nil
 }
 
+func (s *service) GetByHostWithProperties(hostID int) (map[int][]domain.Reservation, error) {
+	if hostID <= 0 {
+		return nil, domain.ErrInvalidEntity
+	}
+
+	properties, err := s.propertyRepo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	owned := make(map[int]struct{})
+	for _, p := range properties {
+		if p.UserID == hostID {
+			owned[p.ID] = struct{}{}
+		}
+	}
+
+	all, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[int][]domain.Reservation)
+	for _, item := range all {
+		if _, ok := owned[item.PropertyID]; ok {
+			grouped[item.PropertyID] = append(grouped[item.PropertyID], item)
+		}
+	}
+
+	return grouped, nil
+}
+
 func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, error) {
 	if id <= 0 {
 		return domain.Reservation{}, domain.ErrInvalidEntity

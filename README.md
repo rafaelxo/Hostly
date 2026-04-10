@@ -32,6 +32,17 @@ O projeto também aplica conceitos modernos de arquitetura de software no back-e
 
 ---
 
+## 🎯 Objetivos da Fase 2
+
+- Implementar CRUD completo das entidades do sistema
+- Consolidar relacionamento **1:N** entre **Usuário (Anfitrião)** → **Imóveis** e **Imóvel** → **Reservas**
+- Aplicar **Hash Extensível** para busca direta por chave (ID)
+- Aplicar **Ordenação Externa** por atributo (ex.: título, cidade, valorDiaria, dataCadastro)
+- Implementar **Árvore B+** (inserção e busca) para consultas por atributo
+- Melhorar precisão de localização no mapa com geocodificação e persistência de coordenadas
+
+---
+
 ## 🏗 Arquitetura do Projeto
 
 ### 🔹 Back-end
@@ -143,6 +154,28 @@ Arquitetura:
 
 ---
 
+## ⚙ Funcionalidades Implementadas (Fase 2)
+
+- ✅ CRUD completo das entidades já presentes
+  - Imóveis
+  - Usuários
+  - Reservas
+- ✅ Relacionamento 1:N operacional no domínio e na API
+  - Anfitrião → múltiplos imóveis
+  - Imóvel → múltiplas reservas
+- ✅ Hash Extensível aplicado às buscas diretas por ID no armazenamento binário
+- ✅ Ordenação Externa aplicada na listagem de imóveis por atributo
+- ✅ Árvore B+ implementada para inserção e busca por `valorDiaria`
+- ✅ Filtros e ordenação de reservas no backend e frontend
+- ✅ Geolocalização aprimorada
+  - Geocodificação por CEP/endereço estruturado/fallback
+  - Ranking de candidatos por relevância
+  - Cache local no frontend
+  - Persistência de latitude/longitude no imóvel
+- ✅ UI/UX refinada para fluxos principais (dashboard, imóveis e reservas)
+
+---
+
 ## 🔌 Endpoints da API
 
 - `GET /imoveis`
@@ -150,11 +183,16 @@ Arquitetura:
 - `GET /imoveis/{id}`
 - `PUT /imoveis/{id}`
 - `DELETE /imoveis/{id}`
+- `GET /imoveis?ordenarPor={titulo|cidade|valorDiaria|dataCadastro}&ordem={asc|desc}`
+- `GET /imoveis?valorDiaria={valor}`
 - `POST /usuarios`
 - `GET /usuarios/anfitrioes`
 - `PUT /usuarios/{id}`
 - `DELETE /usuarios/{id}`
 - `GET /reservas`
+- `GET /reservas?idImovel={id}`
+- `GET /reservas?status={PENDENTE|CONFIRMADA|CANCELADA}`
+- `GET /reservas?ordenarPor={dataInicio|dataFim|valorTotal}&ordem={asc|desc}`
 - `GET /reservas/{id}`
 - `POST /reservas`
 - `GET /dashboard/stats`
@@ -167,6 +205,9 @@ Arquitetura:
 - Controle por cabeçalho
 - Exclusão lógica com lápide
 - Serialização manual
+- Hash Extensível
+- Ordenação Externa
+- Árvore B+
 - Separação de responsabilidades
 - Inversão de dependência
 - Arquitetura Hexagonal
@@ -186,8 +227,15 @@ Arquitetura:
 
 ## 🚀 Status
 
-🟢 Fase 1 – Modelagem e Implementação do CRUD da entidade Imóvel
-🔜 Próximas fases incluirão indexação externa, compactação e mecanismos avançados de busca.
+🟢 Fase 1 – Concluída
+🟢 Fase 2 – Concluída
+
+Estado atual:
+
+- Persistência binária com cabeçalho, lápide e serialização estruturada
+- CRUD completo das entidades
+- Índices e algoritmos de busca/ordenação aplicados
+- Dashboard com mapa e geolocalização aprimorada
 
 ---
 

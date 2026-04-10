@@ -25,6 +25,8 @@ const (
 	propertyFieldIDActive           = 9
 	propertyFieldIDAddress          = 10
 	propertyFieldIDAmenities        = 11
+	propertyFieldIDLatitude         = 12
+	propertyFieldIDLongitude        = 13
 	userFieldIDID                   = 1
 	userFieldIDName                 = 2
 	userFieldIDEmail                = 3
@@ -73,7 +75,7 @@ func reservationPayloadCodec() payloadCodec[domain.Reservation] {
 }
 
 func encodeProperty(item domain.Property) ([]byte, error) {
-	fields := make([]recordField, 0, 10)
+	fields := make([]recordField, 0, 12)
 
 	userIDData, err := encodeInt32Data(int32(item.UserID))
 	if err != nil {
@@ -84,6 +86,18 @@ func encodeProperty(item domain.Property) ([]byte, error) {
 	fields = append(fields, recordField{id: propertyFieldIDTitle, data: []byte(item.Title)})
 	fields = append(fields, recordField{id: propertyFieldIDDescription, data: []byte(item.Description)})
 	fields = append(fields, recordField{id: propertyFieldIDCity, data: []byte(item.City)})
+
+	latitudeData, err := encodeFloat64Data(item.Latitude)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDLatitude, data: latitudeData})
+
+	longitudeData, err := encodeFloat64Data(item.Longitude)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: propertyFieldIDLongitude, data: longitudeData})
 
 	dailyRateData, err := encodeFloat64Data(item.DailyRate)
 	if err != nil {
@@ -159,6 +173,20 @@ func decodePropertyFromStandard(fields map[uint8][]byte, id int) (domain.Propert
 		return domain.Property{}, err
 	}
 	item.City = string(cityData)
+
+	if latitudeData, ok := optionalField(fields, propertyFieldIDLatitude); ok {
+		item.Latitude, err = decodeFloat64Data(latitudeData)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	}
+
+	if longitudeData, ok := optionalField(fields, propertyFieldIDLongitude); ok {
+		item.Longitude, err = decodeFloat64Data(longitudeData)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	}
 
 	dailyRateData, err := requiredField(fields, propertyFieldIDDailyRate)
 	if err != nil {
@@ -272,6 +300,8 @@ func decodePropertyLegacy(payload []byte, id int) (domain.Property, error) {
 	}
 
 	item.Address = domain.Address{City: item.City}
+	item.Latitude = 0
+	item.Longitude = 0
 
 	return item, nil
 }

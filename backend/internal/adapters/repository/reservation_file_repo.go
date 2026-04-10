@@ -2,7 +2,6 @@ package repository
 
 import (
 	"backend/internal/domain"
-	reservationuc "backend/internal/usecase/reservation"
 	"sync"
 )
 type ReservationFileRepository struct {
@@ -11,7 +10,7 @@ type ReservationFileRepository struct {
 	mu      sync.Mutex
 }
 
-func NewReservationFileRepository(path string) (reservationuc.Repository, error) {
+func NewReservationFileRepository(path string) (*ReservationFileRepository, error) {
 	store, err := newBinaryEntityStore(
 		path,
 		func(r domain.Reservation) int { return r.ID },
@@ -25,6 +24,10 @@ func NewReservationFileRepository(path string) (reservationuc.Repository, error)
 		store:   store,
 		pending: make(map[int]domain.Reservation),
 	}, nil
+}
+
+func (r *ReservationFileRepository) HashStats() HashIndexStats {
+	return r.store.HashStats()
 }
 
 func (r *ReservationFileRepository) Create(item domain.Reservation) (domain.Reservation, error) {

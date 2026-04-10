@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import logoImg from "./assets/logo.png";
 import {
-  IconBell,
   IconBuilding,
   IconCalendar,
   IconChevronLeft,
@@ -9,7 +8,6 @@ import {
   IconHome,
   IconLogout,
   IconMoney,
-  IconSearch,
   IconUsers,
 } from "./components/icons";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
@@ -25,6 +23,7 @@ import {
   imoveisService,
   type Usuario,
 } from "./services/api";
+import { geocodeAddressInput } from "./services/geocoding";
 
 type PageId =
   | "dashboard"
@@ -37,6 +36,11 @@ type PageId =
   | "imoveisAtivos";
 
 type NavItem = { id: PageId; label: string; icon: ReactNode };
+
+const LAYOUT_GAP = 16;
+const SIDEBAR_WIDTH_EXPANDED = 256;
+const SIDEBAR_WIDTH_COLLAPSED = 80;
+const CONTENT_OUTER_GUTTER = 24;
 
 function getNav(user: Usuario): NavItem[] {
   if (user.tipo === "ADMIN") {
@@ -95,6 +99,17 @@ const PAGE_TITLES: Record<PageId, string> = {
   reservasAtivas: "Reservas Ativas",
   usuariosAtivos: "Usuários Ativos",
   imoveisAtivos: "Imóveis Ativos",
+};
+
+const PAGE_SUBTITLES: Record<PageId, string> = {
+  dashboard: "Visão consolidada da operação em tempo real",
+  minhasReservas: "Acompanhe, edite e confirme suas reservas",
+  meusImoveis: "Gerencie seu portfólio com filtros e ordenação",
+  reservasRecebidas: "Reservas recebidas nos seus imóveis",
+  receita: "Evolução de receita por imóvel e período",
+  reservasAtivas: "Reservas atualmente em vigência",
+  usuariosAtivos: "Usuários com conta ativa na plataforma",
+  imoveisAtivos: "Imóveis publicados e disponíveis",
 };
 
 type NovoImovelForm = {
@@ -306,10 +321,18 @@ const Sidebar = ({
   onOpenAddProperty: () => void;
 }) => (
   <aside
-    className={`fixed top-0 left-0 h-full z-30 bg-white border-r border-stone-100 flex flex-col shadow-sm transition-all duration-300 ${collapsed ? "w-[68px]" : "w-60"}`}
+    className={`app-sidebar fixed top-4 left-4 h-[calc(100%-32px)] z-30 flex flex-col transition-all duration-300 ${collapsed ? "w-20" : "w-64"}`}
   >
-    <div className="flex items-center gap-3 px-4 py-5 border-b border-stone-100">
-      <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm bg-white">
+    <button
+      onClick={onToggle}
+      className="absolute -right-3 top-6 w-6 h-10 rounded-xl bg-white border border-[var(--hostly-border)] shadow-sm text-stone-500 hover:text-stone-800 transition-colors flex items-center justify-center z-10"
+      aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
+    >
+      {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
+    </button>
+
+    <div className="flex items-center gap-3 px-4 py-5 border-b border-[var(--hostly-border)]/80">
+      <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm bg-white border border-[var(--hostly-border)]">
         <img
           src={logoImg}
           alt="Hostly"
@@ -317,18 +340,12 @@ const Sidebar = ({
         />
       </div>
       {!collapsed && (
-        <span className="text-stone-800 font-bold text-lg tracking-tight">
+        <span className="text-[var(--hostly-text)] font-extrabold text-lg tracking-tight">
           Hostly
         </span>
       )}
-      <button
-        onClick={onToggle}
-        className={`text-stone-300 hover:text-stone-500 transition-colors ${collapsed ? "mx-auto" : "ml-auto"}`}
-      >
-        {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
-      </button>
     </div>
-    <nav className="flex-1 py-4 px-2 space-y-1">
+    <nav className="flex-1 py-5 px-2.5 space-y-1.5">
       {items.map((item) => {
         const active = current === item.id;
         return (
@@ -337,7 +354,7 @@ const Sidebar = ({
             onClick={() => onNavigate(item.id)}
             title={collapsed ? item.label : undefined}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
-              ${active ? "bg-amber-500 text-white shadow-sm" : "text-stone-500 hover:text-stone-800 hover:bg-stone-50"}
+              ${active ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-200/60" : "text-stone-600 hover:text-stone-900 hover:bg-white"}
               ${collapsed ? "justify-center" : ""}`}
           >
             <span className="flex-shrink-0">{item.icon}</span>
@@ -347,12 +364,12 @@ const Sidebar = ({
       })}
     </nav>
     <div
-      className={`px-2 pb-4 pt-3 border-t border-stone-100 ${collapsed ? "flex justify-center" : ""}`}
+      className={`px-2 pb-4 pt-3 border-t border-[var(--hostly-border)]/80 ${collapsed ? "flex justify-center" : ""}`}
     >
       {!collapsed && user.tipo === "HOSPEDE" && (
         <button
           onClick={onOpenAddProperty}
-          className="w-full mb-2 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold"
+          className="w-full mb-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-semibold"
         >
           Seja anfitrião
         </button>
@@ -361,16 +378,16 @@ const Sidebar = ({
       {collapsed ? (
         <button
           onClick={onLogout}
-          className="w-9 h-9 rounded-xl bg-stone-50 flex items-center justify-center text-stone-400 hover:text-stone-600 transition-colors"
+          className="w-9 h-9 rounded-xl bg-white border border-[var(--hostly-border)] flex items-center justify-center text-stone-500 hover:text-stone-700 transition-colors"
         >
           <IconLogout />
         </button>
       ) : (
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-stone-50 transition-colors group"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white transition-colors group"
         >
-          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm">
             {user.nome
               .split(" ")
               .map((n) => n[0])
@@ -378,7 +395,7 @@ const Sidebar = ({
               .join("")}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-stone-700 truncate">
+            <p className="text-xs font-semibold text-[var(--hostly-text)] truncate">
               {user.nome}
             </p>
             <p className="text-xs text-stone-400">{user.tipo}</p>
@@ -393,32 +410,24 @@ const Sidebar = ({
 );
 
 const Header = ({
-  current,
-  sidebarWidth,
+  title,
+  subtitle,
+  contentLeft,
 }: {
-  current: PageId;
-  sidebarWidth: number;
+  title: string;
+  subtitle?: string;
+  contentLeft: number;
 }) => (
   <header
-    className="fixed top-0 right-0 z-20 h-16 bg-white border-b border-stone-100 flex items-center gap-4 px-6 transition-all duration-300"
-    style={{ left: sidebarWidth }}
+    className="app-header fixed top-4 z-20 h-16 rounded-2xl flex items-center gap-4 px-6 transition-all duration-300"
+    style={{ left: contentLeft + CONTENT_OUTER_GUTTER, right: LAYOUT_GAP + CONTENT_OUTER_GUTTER }}
   >
-    <div className="flex-1 flex items-center gap-2">
-      <h2 className="font-semibold text-stone-800">{PAGE_TITLES[current]}</h2>
+    <div className="flex-1 min-w-0">
+      <h2 className="font-bold text-[var(--hostly-text)] tracking-tight truncate">{title}</h2>
+      {subtitle && (
+        <p className="text-xs text-[var(--hostly-muted)] mt-0.5 truncate">{subtitle}</p>
+      )}
     </div>
-    <div className="hidden md:flex items-center gap-2 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2 w-56">
-      <span className="text-stone-400">
-        <IconSearch />
-      </span>
-      <input
-        className="bg-transparent text-sm text-stone-600 placeholder-stone-400 outline-none w-full"
-        placeholder="Buscar..."
-      />
-    </div>
-    <button className="relative w-9 h-9 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
-      <IconBell />
-      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full"></span>
-    </button>
   </header>
 );
 
@@ -482,6 +491,7 @@ export default function App() {
     setViewingImovelId(null);
     setPreselectedReservaImovelId(null);
     setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleStartReserva = (imovelId: number) => {
@@ -519,6 +529,18 @@ export default function App() {
     setAddPropertyLoading(true);
     setAddPropertyError(null);
     try {
+      const coords = await geocodeAddressInput(
+        {
+          rua: novoImovelForm.rua,
+          numero: novoImovelForm.numero,
+          bairro: novoImovelForm.bairro,
+          cidade: novoImovelForm.cidade,
+          estado: novoImovelForm.estado,
+          cep: novoImovelForm.cep,
+        },
+        novoImovelForm.cidade,
+      );
+
       await imoveisService.create({
         idUsuario: user.idUsuario,
         titulo: novoImovelForm.titulo,
@@ -537,6 +559,8 @@ export default function App() {
           .filter(Boolean)
           .map((nome) => ({ nome })),
         cidade: novoImovelForm.cidade,
+        latitude: coords?.[0] ?? 0,
+        longitude: coords?.[1] ?? 0,
         valorDiaria: Number(novoImovelForm.valorDiaria),
         dataCadastro: new Date().toISOString().slice(0, 10),
         fotos: photos,
@@ -564,7 +588,15 @@ export default function App() {
     }
   };
 
-  const sidebarWidth = collapsed ? 68 : 240;
+  const sidebarWidth = collapsed
+    ? SIDEBAR_WIDTH_COLLAPSED
+    : SIDEBAR_WIDTH_EXPANDED;
+  const contentLeft = sidebarWidth + LAYOUT_GAP*2;
+  const headerTitle = viewingImovelId !== null ? "Detalhes do Imóvel" : PAGE_TITLES[page];
+  const headerSubtitle =
+    viewingImovelId !== null
+      ? "Visualização completa do imóvel selecionado"
+      : PAGE_SUBTITLES[page];
 
   const renderPage = () => {
     if (!user) return null;
@@ -648,7 +680,7 @@ export default function App() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50 flex items-center justify-center text-stone-500">
+      <div className="min-h-screen app-shell flex items-center justify-center text-stone-500">
         Carregando sessão...
       </div>
     );
@@ -659,7 +691,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-100 to-stone-50">
+    <div className="app-shell">
       <Sidebar
         current={page}
         onNavigate={handleNavigate}
@@ -675,11 +707,13 @@ export default function App() {
       />
       <div
         className="transition-all duration-300"
-        style={{ marginLeft: sidebarWidth }}
+        style={{ marginLeft: contentLeft }}
       >
-        <Header current={page} sidebarWidth={sidebarWidth} />
-        <main className="pt-16 min-h-screen">
-          <div className="max-w-6xl mx-auto px-6 py-6">{renderPage()}</div>
+        <Header title={headerTitle} subtitle={headerSubtitle} contentLeft={contentLeft} />
+        <main className="pt-24 min-h-screen pb-6">
+          <div className="w-full px-6">
+            <div className="app-main-surface">{renderPage()}</div>
+          </div>
         </main>
       </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import { ErrorMsg, Spinner } from "../components/common";
 import { IconArrowLeft, IconCalendar, IconEdit } from "../components/icons";
+import { geocodePropertyAddress } from "../services/geocoding";
 import { imoveisService, type Imovel } from "../services/api";
 
 const _proto = L.Icon.Default.prototype as unknown as Record<string, unknown>;
@@ -14,20 +15,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
-
-async function geocode(q: string): Promise<[number, number] | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`,
-      { headers: { "User-Agent": "Hostly-App/1.0" } },
-    );
-    const data = (await res.json()) as { lat: string; lon: string }[];
-    if (data[0]) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-  } catch {
-    //
-  }
-  return null;
-}
 
 const ptBrCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -72,21 +59,10 @@ export function ImovelDetailPage({
   useEffect(() => {
     if (!imovel || geocoded.current) return;
     geocoded.current = true;
-    const addr = imovel.endereco;
-    const queries = addr
-      ? [
-          `${addr.rua} ${addr.numero}, ${addr.bairro}, ${addr.cidade}, ${addr.estado}, Brasil`,
-          `${addr.cidade}, ${addr.estado}, Brasil`,
-        ]
-      : [`${imovel.cidade}, Brasil`];
-
     const run = async () => {
-      for (const q of queries) {
-        const result = await geocode(q);
-        if (result) {
-          setCoords(result);
-          break;
-        }
+      const result = await geocodePropertyAddress(imovel);
+      if (result) {
+        setCoords(result);
       }
     };
     void run();

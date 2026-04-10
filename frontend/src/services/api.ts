@@ -19,6 +19,8 @@ export interface Imovel {
     descricao?: string;
   }[];
   cidade: string;
+  latitude?: number;
+  longitude?: number;
   valorDiaria: number;
   dataCadastro: string;
   fotos: string[];
@@ -150,8 +152,24 @@ export function hasSessionToken() {
 }
 
 export const imoveisService = {
-  async getAll(): Promise<Imovel[]> {
-    return request<Imovel[]>("/imoveis");
+  async getAll(params?: {
+    ordenarPor?: "valorDiaria" | "cidade" | "dataCadastro" | "titulo";
+    ordem?: "asc" | "desc";
+    valorDiaria?: number;
+  }): Promise<Imovel[]> {
+    const query = new URLSearchParams();
+    if (params?.ordenarPor) {
+      query.set("ordenarPor", params.ordenarPor);
+    }
+    if (params?.ordem) {
+      query.set("ordem", params.ordem);
+    }
+    if (typeof params?.valorDiaria === "number") {
+      query.set("valorDiaria", String(params.valorDiaria));
+    }
+
+    const qs = query.toString();
+    return request<Imovel[]>(qs ? `/imoveis?${qs}` : "/imoveis");
   },
   async getByOwner(idUsuario: number): Promise<Imovel[]> {
     return request<Imovel[]>(`/imoveis/usuario/${idUsuario}`);
@@ -219,11 +237,31 @@ export const usuarioService = {
 };
 
 export const reservaService = {
-  async getAll(): Promise<Reserva[]> {
-    return request<Reserva[]>("/reservas");
+  async getAll(params?: {
+    idImovel?: number;
+    status?: Reserva["status"];
+    ordenarPor?: "dataInicio" | "dataFim" | "valorTotal";
+    ordem?: "asc" | "desc";
+  }): Promise<Reserva[]> {
+    const query = new URLSearchParams();
+    if (typeof params?.idImovel === "number") {
+      query.set("idImovel", String(params.idImovel));
+    }
+    if (params?.status) {
+      query.set("status", params.status);
+    }
+    if (params?.ordenarPor) {
+      query.set("ordenarPor", params.ordenarPor);
+    }
+    if (params?.ordem) {
+      query.set("ordem", params.ordem);
+    }
+
+    const qs = query.toString();
+    return request<Reserva[]>(qs ? `/reservas?${qs}` : "/reservas");
   },
   async getByImovel(idImovel: number): Promise<Reserva[]> {
-    return request<Reserva[]>(`/reservas?idImovel=${idImovel}`);
+    return this.getAll({ idImovel });
   },
   async getByHospede(idHospede: number): Promise<Reserva[]> {
     return request<Reserva[]>(`/reservas/hospede/${idHospede}`);

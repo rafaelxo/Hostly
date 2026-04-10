@@ -36,6 +36,7 @@ type binaryEntityStore[T any] struct {
 	getID func(T) int
 	setID func(*T, int)
 	codec payloadCodec[T]
+	index *extensibleHashIndex
 	mu    sync.Mutex
 }
 
@@ -50,6 +51,7 @@ func newBinaryEntityStore[T any](
 		getID: getID,
 		setID: setID,
 		codec: codec,
+		index: newExtensibleHashIndex(4),
 	}
 	if err := store.ensureFile(); err != nil {
 		return nil, err
@@ -76,10 +78,13 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	if info.Size() >= fileHeaderSize {
 		vbuf := make([]byte, 1)
 		if _, err := io.ReadFull(file, vbuf); err == nil && vbuf[0] == fileVersion {
-			return nil
+			return s.rebuildIndex(file)
 		}
 		log.Printf("aviso: %s em formato antigo, migrando para versao %d", s.path, fileVersion)
-		return s.migrateFile(file)
+		if err := s.migrateFile(file); err != nil {
+			return err
+		}
+		return s.rebuildIndex(file)
 	} else if info.Size() > 0 {
 		log.Printf("aviso: %s com cabecalho incompleto, resetando", s.path)
 		if err := file.Truncate(0); err != nil {
@@ -87,7 +92,12 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 		}
 	}
 
-	return writeHeader(file, fileHeader{})
+	if err := writeHeader(file, fileHeader{}); err != nil {
+		return err
+	}
+
+	s.index.Reset()
+	return nil
 }
 
 func (s *binaryEntityStore[T]) migrateFile(file *os.File) error {
@@ -114,7 +124,7 @@ func (s *binaryEntityStore[T]) migrateFile(file *os.File) error {
 		if err != nil {
 			return err
 		}
-		if err := appendRecord(file, false, s.getID(item), payload); err != nil {
+		if _, err := appendRecord(file, false, s.getID(item), payload); err != nil {
 			return err
 		}
 	}
@@ -168,10 +178,12 @@ func (s *binaryEntityStore[T]) createWithID(item T) (T, error) {
 		return zero, err
 	}
 
-	if err := appendRecord(file, false, s.getID(item), payload); err != nil {
+	offset, err := appendRecord(file, false, s.getID(item), payload)
+	if err != nil {
 		var zero T
 		return zero, err
 	}
+	s.index.Insert(s.getID(item), offset)
 
 	header.Count++
 	if err := writeHeader(file, header); err != nil {
@@ -208,10 +220,12 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 		return zero, err
 	}
 
-	if err := appendRecord(file, false, int(header.LastID), payload); err != nil {
+	offset, err := appendRecord(file, false, int(header.LastID), payload)
+	if err != nil {
 		var zero T
 		return zero, err
 	}
+	s.index.Insert(int(header.LastID), offset)
 
 	header.Count++
 	if err := writeHeader(file, header); err != nil {
@@ -238,20 +252,35 @@ func (s *binaryEntityStore[T]) GetByID(id int) (T, error) {
 		return zero, err
 	}
 
-	items, err := scanActiveRecords(file, s.codec)
-	if err != nil {
+	offset, ok := s.index.Get(id)
+	if !ok {
+		var zero T
+		return zero, domain.ErrNotFound
+	}
+
+	item, recordID, deleted, err := readRecordAt(file, offset, s.codec)
+	if err == nil && !deleted && recordID == id {
+		return item, nil
+	}
+
+	if err := s.rebuildIndex(file); err != nil {
 		var zero T
 		return zero, err
 	}
 
-	for _, item := range items {
-		if s.getID(item) == id {
-			return item, nil
-		}
+	offset, ok = s.index.Get(id)
+	if !ok {
+		var zero T
+		return zero, domain.ErrNotFound
 	}
 
-	var zero T
-	return zero, domain.ErrNotFound
+	item, recordID, deleted, err = readRecordAt(file, offset, s.codec)
+	if err != nil || deleted || recordID != id {
+		var zero T
+		return zero, domain.ErrNotFound
+	}
+
+	return item, nil
 }
 
 func (s *binaryEntityStore[T]) GetAll() ([]T, error) {
@@ -288,16 +317,30 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		return zero, err
 	}
 
-	meta, _, err := findRecordByID(file, id, s.getID, s.codec)
-	if err != nil {
+	offset, ok := s.index.Get(id)
+	if !ok {
 		var zero T
-		return zero, err
+		return zero, domain.ErrNotFound
 	}
 
-	if err := markDeletedAt(file, meta.Offset); err != nil {
+	_, recordID, deleted, err := readRecordAt(file, offset, s.codec)
+	if err != nil || deleted || recordID != id {
+		if err := s.rebuildIndex(file); err != nil {
+			var zero T
+			return zero, err
+		}
+		offset, ok = s.index.Get(id)
+		if !ok {
+			var zero T
+			return zero, domain.ErrNotFound
+		}
+	}
+
+	if err := markDeletedAt(file, offset); err != nil {
 		var zero T
 		return zero, err
 	}
+	s.index.Delete(id)
 
 	s.setID(&item, id)
 	payload, err := s.codec.encode(item)
@@ -305,10 +348,12 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		var zero T
 		return zero, err
 	}
-	if err := appendRecord(file, false, id, payload); err != nil {
+	newOffset, err := appendRecord(file, false, id, payload)
+	if err != nil {
 		var zero T
 		return zero, err
 	}
+	s.index.Insert(id, newOffset)
 
 	if err := writeHeader(file, header); err != nil {
 		var zero T
@@ -333,14 +378,26 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 		return err
 	}
 
-	meta, _, err := findRecordByID(file, id, s.getID, s.codec)
-	if err != nil {
-		return err
+	offset, ok := s.index.Get(id)
+	if !ok {
+		return domain.ErrNotFound
 	}
 
-	if err := markDeletedAt(file, meta.Offset); err != nil {
+	_, recordID, deleted, err := readRecordAt(file, offset, s.codec)
+	if err != nil || deleted || recordID != id {
+		if err := s.rebuildIndex(file); err != nil {
+			return err
+		}
+		offset, ok = s.index.Get(id)
+		if !ok {
+			return domain.ErrNotFound
+		}
+	}
+
+	if err := markDeletedAt(file, offset); err != nil {
 		return err
 	}
+	s.index.Delete(id)
 
 	if header.Count > 0 {
 		header.Count--
@@ -379,9 +436,10 @@ func writeHeader(file *os.File, h fileHeader) error {
 	return err
 }
 
-func appendRecord(file *os.File, deleted bool, id int, payload []byte) error {
-	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		return err
+func appendRecord(file *os.File, deleted bool, id int, payload []byte) (int64, error) {
+	offset, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
 	}
 
 	tomb := byte(0)
@@ -395,11 +453,96 @@ func appendRecord(file *os.File, deleted bool, id int, payload []byte) error {
 	binary.LittleEndian.PutUint32(headerBuf[5:9], uint32(len(payload)))
 
 	if _, err := file.Write(headerBuf); err != nil {
+		return 0, err
+	}
+
+	_, err = file.Write(payload)
+	if err != nil {
+		return 0, err
+	}
+
+	return offset, nil
+}
+
+func (s *binaryEntityStore[T]) HashStats() HashIndexStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.index.Stats()
+}
+
+func (s *binaryEntityStore[T]) rebuildIndex(file *os.File) error {
+	s.index.Reset()
+
+	if _, err := file.Seek(fileHeaderSize, io.SeekStart); err != nil {
 		return err
 	}
 
-	_, err := file.Write(payload)
-	return err
+	for {
+		offset, err := file.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return err
+		}
+
+		headerBuf := make([]byte, recordMetaSize)
+		_, err = io.ReadFull(file, headerBuf)
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		deleted := headerBuf[0] == 1
+		recordID := int(binary.LittleEndian.Uint32(headerBuf[1:5]))
+		size := binary.LittleEndian.Uint32(headerBuf[5:9])
+
+		if _, err := file.Seek(int64(size), io.SeekCurrent); err != nil {
+			return err
+		}
+
+		if deleted {
+			s.index.Delete(recordID)
+			continue
+		}
+
+		s.index.Insert(recordID, offset)
+	}
+}
+
+func readRecordAt[T any](file *os.File, offset int64, codec payloadCodec[T]) (T, int, bool, error) {
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		var zero T
+		return zero, 0, false, err
+	}
+
+	headerBuf := make([]byte, recordMetaSize)
+	if _, err := io.ReadFull(file, headerBuf); err != nil {
+		var zero T
+		return zero, 0, false, err
+	}
+
+	deleted := headerBuf[0] == 1
+	recordID := int(binary.LittleEndian.Uint32(headerBuf[1:5]))
+	size := binary.LittleEndian.Uint32(headerBuf[5:9])
+
+	payload := make([]byte, size)
+	if _, err := io.ReadFull(file, payload); err != nil {
+		var zero T
+		return zero, 0, false, err
+	}
+
+	if deleted {
+		var zero T
+		return zero, recordID, true, nil
+	}
+
+	item, err := codec.decode(payload, recordID)
+	if err != nil {
+		var zero T
+		return zero, 0, false, err
+	}
+
+	return item, recordID, false, nil
 }
 
 func markDeletedAt(file *os.File, offset int64) error {

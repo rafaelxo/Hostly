@@ -84,6 +84,11 @@ export function ReservasPage({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<"" | Reserva["status"]>("");
+  const [ordenarPor, setOrdenarPor] = useState<
+    "dataInicio" | "dataFim" | "valorTotal"
+  >("dataInicio");
+  const [ordem, setOrdem] = useState<"asc" | "desc">("desc");
 
   const refetch = async () => {
     setLoading(true);
@@ -94,7 +99,11 @@ export function ReservasPage({
           ? await reservaService.getByAnfitriao(hostId)
           : typeof guestId === "number"
             ? await reservaService.getByHospede(guestId)
-            : await reservaService.getAll();
+            : await reservaService.getAll({
+                status: statusFiltro || undefined,
+                ordenarPor,
+                ordem,
+              });
       setReservas(
         activeOnly ? data.filter((item) => isReservaAtiva(item)) : data,
       );
@@ -107,7 +116,7 @@ export function ReservasPage({
 
   useEffect(() => {
     void refetch();
-  }, [guestId, hostId, activeOnly]);
+  }, [guestId, hostId, activeOnly, statusFiltro, ordenarPor, ordem]);
 
   useEffect(() => {
     if (!canManage || typeof preselectedImovelId !== "number") return;
@@ -369,7 +378,7 @@ export function ReservasPage({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
+      <div className="card-elevated p-4 md:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-stone-800">{title}</h3>
@@ -386,11 +395,51 @@ export function ReservasPage({
             </button>
           )}
         </div>
+
+        {typeof hostId !== "number" && typeof guestId !== "number" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <select
+              className={inputCls}
+              value={statusFiltro}
+              onChange={(e) =>
+                setStatusFiltro(e.target.value as "" | Reserva["status"])
+              }
+            >
+              <option value="">Todos os status</option>
+              <option value="PENDENTE">Pendente</option>
+              <option value="CONFIRMADA">Confirmada</option>
+              <option value="CANCELADA">Cancelada</option>
+            </select>
+
+            <select
+              className={inputCls}
+              value={ordenarPor}
+              onChange={(e) =>
+                setOrdenarPor(
+                  e.target.value as "dataInicio" | "dataFim" | "valorTotal",
+                )
+              }
+            >
+              <option value="dataInicio">Ordenar por início</option>
+              <option value="dataFim">Ordenar por fim</option>
+              <option value="valorTotal">Ordenar por valor</option>
+            </select>
+
+            <select
+              className={inputCls}
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as "asc" | "desc")}
+            >
+              <option value="desc">Mais recentes primeiro</option>
+              <option value="asc">Mais antigas primeiro</option>
+            </select>
+          </div>
+        )}
       </div>
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
       {reservas && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div className="card-elevated overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-stone-100">

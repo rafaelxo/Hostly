@@ -1,4 +1,78 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap");
+
 @import "tailwindcss";
+
+:root {
+	--hostly-bg: #f4f6ef;
+	--hostly-surface: #ffffff;
+	--hostly-surface-soft: #fbfbf8;
+	--hostly-border: #e5e8de;
+	--hostly-text: #263032;
+	--hostly-muted: #6d7777;
+	--hostly-primary: #ea7a17;
+	--hostly-primary-strong: #c95e09;
+	--hostly-focus: #ffd18f;
+}
+
+html,
+body,
+#root {
+	min-height: 100%;
+}
+
+body {
+	font-family: "Sora", sans-serif;
+	color: var(--hostly-text);
+	background:
+		radial-gradient(circle at 18% -10%, #ffe8c8 0%, rgba(255, 232, 200, 0) 42%),
+		radial-gradient(circle at 102% 8%, #dcebe3 0%, rgba(220, 235, 227, 0) 38%),
+		linear-gradient(165deg, #f7f8f2 0%, #eef1ea 100%);
+}
+
+.app-shell {
+	min-height: 100vh;
+	background:
+		radial-gradient(circle at 85% 100%, rgba(234, 122, 23, 0.08) 0%, rgba(234, 122, 23, 0) 45%);
+}
+
+.app-sidebar {
+	background: rgba(255, 255, 255, 0.88);
+	backdrop-filter: blur(10px);
+	border-right: 1px solid rgba(229, 232, 222, 0.9);
+	box-shadow: 0 14px 40px rgba(29, 37, 35, 0.08);
+	border-top-right-radius: 26px;
+	border-bottom-right-radius: 26px;
+	overflow: visible;
+}
+
+.app-header {
+	background: rgba(255, 255, 255, 0.82);
+	backdrop-filter: blur(8px);
+	border-bottom: 1px solid rgba(229, 232, 222, 0.95);
+}
+
+.app-main-surface {
+	background: rgba(255, 255, 255, 0.48);
+	border: 1px solid rgba(229, 232, 222, 0.8);
+	border-radius: 22px;
+	box-shadow: 0 16px 40px rgba(32, 42, 39, 0.06);
+	padding: 20px;
+	min-height: calc(100vh - 124px);
+}
+
+.card-elevated {
+	background: var(--hostly-surface);
+	border: 1px solid var(--hostly-border);
+	border-radius: 18px;
+	box-shadow: 0 8px 24px rgba(31, 40, 38, 0.05);
+}
+
+button,
+input,
+select,
+textarea {
+	font-family: inherit;
+}
 
 /* Keep Leaflet layers inside page content stacking context. */
 .leaflet-container {

@@ -3,6 +3,7 @@ package web
 import (
 	"backend/internal/adapters/web/handler"
 	authuc "backend/internal/usecase/auth"
+	aeduc "backend/internal/usecase/aed"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -14,10 +15,11 @@ type Dependencies struct {
 	UserService        useruc.Service
 	ReservationService reservationuc.Service
 	AuthService        authuc.Service
+	AEDService         aeduc.Service
 }
 
 func NewRouter(deps Dependencies) http.Handler {
-	props := handler.NewPropertyHandler(deps.PropertyService)
+	props := handler.NewPropertyHandler(deps.PropertyService, deps.AEDService)
 	users := handler.NewUserHandler(deps.UserService)
 	reservs := handler.NewReservationHandler(deps.ReservationService)
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)

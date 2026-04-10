@@ -29,6 +29,8 @@ type Property struct {
 	Address     Address   `json:"endereco"`
 	Amenities   []Amenity `json:"comodidades"`
 	City        string    `json:"cidade"`
+	Latitude    float64   `json:"latitude"`
+	Longitude   float64   `json:"longitude"`
 	DailyRate   float64   `json:"valorDiaria"`
 	CreatedAt   string    `json:"dataCadastro"`
 	Photos      []string  `json:"fotos"`

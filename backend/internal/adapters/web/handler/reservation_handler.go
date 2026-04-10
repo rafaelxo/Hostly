@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
+	"time"
 
 	"backend/internal/domain"
 	reservationuc "backend/internal/usecase/reservation"
@@ -39,12 +41,84 @@ func NewReservationHandler(svc reservationuc.Service) *ReservationHandler {
 }
 
 func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.svc.GetAll()
+	query := r.URL.Query()
+
+	var (
+		items []domain.Reservation
+		err   error
+	)
+
+	if rawPropertyID := query.Get("idImovel"); rawPropertyID != "" {
+		propertyID, parseErr := strconv.Atoi(rawPropertyID)
+		if parseErr != nil {
+			respondError(w, http.StatusBadRequest, parseErr)
+			return
+		}
+		items, err = h.svc.GetByPropertyID(propertyID)
+	} else {
+		items, err = h.svc.GetAll()
+	}
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err)
+		respondDomainError(w, err)
 		return
 	}
+
+	if status := query.Get("status"); status != "" {
+		filtered := make([]domain.Reservation, 0, len(items))
+		for _, item := range items {
+			if string(item.Status) == status {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
+	}
+
+	if sortBy := query.Get("ordenarPor"); sortBy != "" {
+		asc := query.Get("ordem") != "desc"
+		sort.Slice(items, func(i, j int) bool {
+			left := items[i]
+			right := items[j]
+
+			var less bool
+			switch sortBy {
+			case "valorTotal":
+				if left.TotalValue == right.TotalValue {
+					less = left.ID < right.ID
+				} else {
+					less = left.TotalValue < right.TotalValue
+				}
+			case "dataFim":
+				less = compareDateThenID(left.EndDate, right.EndDate, left.ID, right.ID)
+			default:
+				less = compareDateThenID(left.StartDate, right.StartDate, left.ID, right.ID)
+			}
+
+			if asc {
+				return less
+			}
+			return !less
+		})
+	}
+
 	respondJSON(w, http.StatusOK, items)
+}
+
+func compareDateThenID(leftDate string, rightDate string, leftID int, rightID int) bool {
+	leftParsed, leftErr := time.Parse("2006-01-02", leftDate)
+	rightParsed, rightErr := time.Parse("2006-01-02", rightDate)
+
+	if leftErr != nil || rightErr != nil {
+		if leftDate == rightDate {
+			return leftID < rightID
+		}
+		return leftDate < rightDate
+	}
+
+	if leftParsed.Equal(rightParsed) {
+		return leftID < rightID
+	}
+
+	return leftParsed.Before(rightParsed)
 }
 
 func (h *ReservationHandler) ListByGuest(w http.ResponseWriter, r *http.Request) {
