@@ -14,8 +14,8 @@ import {
 import { COMMON_AMENITIES } from "./constants/amenities";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
-import { DashboardPage } from "./pages/DashboardPage";
 import { ChatPage } from "./pages/ChatPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { ImoveisPage } from "./pages/ImoveisPage";
 import { ImovelDetailPage } from "./pages/ImovelDetailPage";
 import { ReceitaPage } from "./pages/ReceitaPage";
@@ -473,9 +473,9 @@ export default function App() {
     number | null
   >(null);
   const [chatTargetUserId, setChatTargetUserId] = useState<number | null>(null);
-  const [chatTargetPropertyId, setChatTargetPropertyId] = useState<number | null>(
-    null,
-  );
+  const [chatTargetPropertyId, setChatTargetPropertyId] = useState<
+    number | null
+  >(null);
 
   const navItems = useMemo(() => (user ? getNav(user) : []), [user]);
 
@@ -641,7 +641,8 @@ export default function App() {
           canManage={user.tipo === "ANFITRIAO" || user.tipo === "ADMIN"}
           onStartChat={
             user.tipo === "HOSPEDE"
-              ? (hostId, propertyId) => handleStartChatFromProperty(hostId, propertyId)
+              ? (hostId, propertyId) =>
+                  handleStartChatFromProperty(hostId, propertyId)
               : undefined
           }
         />

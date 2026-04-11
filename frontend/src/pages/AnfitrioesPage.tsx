@@ -246,7 +246,9 @@ export function AnfitrioesPage({
               </div>
               <p className="font-semibold text-stone-800">{a.nome}</p>
               <p className="text-sm text-stone-400 mt-0.5">{a.email}</p>
-              <p className="text-xs text-stone-500 mt-1">Telefone: {a.telefone || "—"}</p>
+              <p className="text-xs text-stone-500 mt-1">
+                Telefone: {a.telefone || "—"}
+              </p>
               <p className="text-xs text-stone-500 mt-1">Perfil: {a.tipo}</p>
               {canManage && (
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">

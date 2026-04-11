@@ -6,12 +6,12 @@ import (
 )
 
 type ChatMessage struct {
-	ID           int    `json:"idMensagem"`
-	FromUserID   int    `json:"idRemetente"`
-	ToUserID     int    `json:"idDestinatario"`
-	PropertyID   int    `json:"idImovel,omitempty"`
-	Content      string `json:"conteudo"`
-	CreatedAt    string `json:"dataCriacao"`
+	ID         int    `json:"idMensagem"`
+	FromUserID int    `json:"idRemetente"`
+	ToUserID   int    `json:"idDestinatario"`
+	PropertyID int    `json:"idImovel,omitempty"`
+	Content    string `json:"conteudo"`
+	CreatedAt  string `json:"dataCriacao"`
 }
 
 func (m *ChatMessage) Normalize() {

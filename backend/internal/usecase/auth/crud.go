@@ -1,12 +1,12 @@
 package auth
 
 import (
+	"backend/internal/domain"
 	"crypto/rand"
 	"encoding/hex"
 	"strings"
 	"sync"
 	"time"
-	"backend/internal/domain"
 )
 
 type service struct {

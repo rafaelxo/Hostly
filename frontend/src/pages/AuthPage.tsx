@@ -164,7 +164,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
               alt="Hostly"
               className="mx-auto w-16 h-16 object-contain mb-2"
             />
-            <h1 className="text-2xl font-black tracking-tight text-stone-800">Hostly</h1>
+            <h1 className="text-2xl font-black tracking-tight text-stone-800">
+              Hostly
+            </h1>
             <p className="text-sm text-stone-500">Entre ou crie sua conta</p>
           </div>
 
@@ -286,7 +288,9 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         <select
                           className={inputCls}
                           value={regMode}
-                          onChange={(e) => setRegMode(e.target.value as RegisterMode)}
+                          onChange={(e) =>
+                            setRegMode(e.target.value as RegisterMode)
+                          }
                         >
                           <option value="hospede">Hóspede</option>
                           <option value="anfitriao">Anfitrião</option>
@@ -303,7 +307,8 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         Imóvel inicial
                       </p>
                       <p className="text-xs text-amber-700/80 mt-0.5">
-                        Preencha para já começar como anfitrião com anúncio ativo.
+                        Preencha para já começar como anfitrião com anúncio
+                        ativo.
                       </p>
                     </div>
 
@@ -409,7 +414,8 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         <Field label="Comodidades">
                           <div className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-white p-3">
                             {COMMON_AMENITIES.map((amenity) => {
-                              const selected = imovelComodidades.includes(amenity);
+                              const selected =
+                                imovelComodidades.includes(amenity);
                               return (
                                 <button
                                   key={amenity}

@@ -26,7 +26,7 @@ func (s *service) Send(item domain.ChatMessage) (domain.ChatMessage, error) {
 
 	isHostGuestPair :=
 		(fromUser.Type == domain.UserTypeHost && toUser.Type == domain.UserTypeGuest) ||
-		(fromUser.Type == domain.UserTypeGuest && toUser.Type == domain.UserTypeHost)
+			(fromUser.Type == domain.UserTypeGuest && toUser.Type == domain.UserTypeHost)
 	if !isHostGuestPair {
 		return domain.ChatMessage{}, domain.ErrInvalidEntity
 	}

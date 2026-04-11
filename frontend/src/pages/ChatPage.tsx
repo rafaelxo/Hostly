@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorMsg, Spinner, inputCls } from "../components/common";
 import { IconChat, IconSearch } from "../components/icons";
-import { chatService, usuarioService, type ChatMensagem, type Usuario } from "../services/api";
+import {
+  chatService,
+  usuarioService,
+  type ChatMensagem,
+  type Usuario,
+} from "../services/api";
 
 type ChatPageProps = {
   currentUser: Usuario;
@@ -74,7 +79,10 @@ export function ChatPage({
     const loadTargetUser = async () => {
       try {
         const target = await usuarioService.getById(preselectedUserId);
-        if (target.idUsuario !== currentUser.idUsuario && target.tipo !== "ADMIN") {
+        if (
+          target.idUsuario !== currentUser.idUsuario &&
+          target.tipo !== "ADMIN"
+        ) {
           setUsers((prev) => [...prev, target]);
         }
       } catch {
@@ -85,7 +93,8 @@ export function ChatPage({
     void loadTargetUser();
   }, [currentUser.idUsuario, preselectedUserId, users]);
 
-  const selectedUser = contacts.find((u) => u.idUsuario === selectedUserId) ?? null;
+  const selectedUser =
+    contacts.find((u) => u.idUsuario === selectedUserId) ?? null;
   const visibleContacts = useMemo(() => {
     const query = contactQuery.trim().toLowerCase();
     if (!query) return contacts;
@@ -221,10 +230,14 @@ export function ChatPage({
             </div>
             <div className="min-w-0">
               <p className="text-base font-semibold text-stone-800 truncate">
-                {selectedUser ? `Conversa com ${selectedUser.nome}` : "Conversa"}
+                {selectedUser
+                  ? `Conversa com ${selectedUser.nome}`
+                  : "Conversa"}
               </p>
               <p className="text-xs text-stone-500 truncate">
-                {selectedUser ? selectedUser.tipo : "Selecione um contato para iniciar"}
+                {selectedUser
+                  ? selectedUser.tipo
+                  : "Selecione um contato para iniciar"}
               </p>
               {selectedPropertyId ? (
                 <p className="text-[11px] text-amber-600 truncate mt-0.5">
@@ -235,7 +248,11 @@ export function ChatPage({
           </div>
         </header>
 
-        {error && <div className="mt-4"><ErrorMsg msg={error} /></div>}
+        {error && (
+          <div className="mt-4">
+            <ErrorMsg msg={error} />
+          </div>
+        )}
 
         <div className="mt-4 flex-1 rounded-2xl border border-stone-200 bg-gradient-to-b from-stone-50 to-white p-4 overflow-y-auto space-y-3">
           {loadingMessages ? (
@@ -284,7 +301,9 @@ export function ChatPage({
             className={inputCls}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={selectedUser ? "Digite sua mensagem..." : "Selecione um contato"}
+            placeholder={
+              selectedUser ? "Digite sua mensagem..." : "Selecione um contato"
+            }
             disabled={!selectedUser || sending}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
