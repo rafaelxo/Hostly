@@ -10,6 +10,7 @@ import {
   IconMoney,
   IconUsers,
 } from "./components/icons";
+import { COMMON_AMENITIES } from "./constants/amenities";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -122,8 +123,7 @@ type NovoImovelForm = {
   estado: string;
   cep: string;
   valorDiaria: string;
-  comodidades: string;
-  fotos: string;
+  comodidades: string[];
 };
 
 const initialNovoImovelForm: NovoImovelForm = {
@@ -136,27 +136,19 @@ const initialNovoImovelForm: NovoImovelForm = {
   estado: "",
   cep: "",
   valorDiaria: "",
-  comodidades: "",
-  fotos: "",
+  comodidades: [],
 };
 
 const inputCls =
   "w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 placeholder-stone-400 outline-none focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 transition-all";
-
-const isHttpURL = (value: string) => {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
 
 const AddPropertyModal = ({
   open,
   onClose,
   form,
   onChange,
+  onToggleAmenity,
+  onFilesChange,
   onSubmit,
   loading,
   error,
@@ -164,7 +156,12 @@ const AddPropertyModal = ({
   open: boolean;
   onClose: () => void;
   form: NovoImovelForm;
-  onChange: (field: keyof NovoImovelForm, value: string) => void;
+  onChange: (
+    field: Exclude<keyof NovoImovelForm, "comodidades">,
+    value: string,
+  ) => void;
+  onToggleAmenity: (amenity: string) => void;
+  onFilesChange: (files: FileList | null) => void;
   onSubmit: (e: React.FormEvent) => void;
   loading: boolean;
   error: string | null;
@@ -258,18 +255,32 @@ const AddPropertyModal = ({
             <div className="md:col-span-2">
               <input
                 className={inputCls}
-                placeholder="Fotos (URLs separadas por vírgula)"
-                value={form.fotos}
-                onChange={(e) => onChange("fotos", e.target.value)}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                onChange={(e) => onFilesChange(e.target.files)}
               />
             </div>
             <div className="md:col-span-2">
-              <input
-                className={inputCls}
-                placeholder="Comodidades (separadas por vírgula)"
-                value={form.comodidades}
-                onChange={(e) => onChange("comodidades", e.target.value)}
-              />
+              <div className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
+                {COMMON_AMENITIES.map((amenity) => {
+                  const selected = form.comodidades.includes(amenity);
+                  return (
+                    <button
+                      key={amenity}
+                      type="button"
+                      onClick={() => onToggleAmenity(amenity)}
+                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                        selected
+                          ? "bg-amber-100 border-amber-300 text-amber-700"
+                          : "bg-white border-stone-200 text-stone-600 hover:border-amber-300"
+                      }`}
+                    >
+                      {amenity}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -446,6 +457,7 @@ export default function App() {
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
   const [addPropertyLoading, setAddPropertyLoading] = useState(false);
   const [addPropertyError, setAddPropertyError] = useState<string | null>(null);
+  const [novoImovelFiles, setNovoImovelFiles] = useState<File[]>([]);
   const [novoImovelForm, setNovoImovelForm] = useState<NovoImovelForm>(
     initialNovoImovelForm,
   );
@@ -511,25 +523,13 @@ export default function App() {
     e.preventDefault();
     if (!user) return;
 
-    const photos = novoImovelForm.fotos
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
     if (novoImovelForm.titulo.trim().length < 4) {
       setAddPropertyError("O título precisa ter pelo menos 4 caracteres.");
       return;
     }
 
-    if (photos.length === 0) {
-      setAddPropertyError("Informe pelo menos 1 URL de foto (http/https).");
-      return;
-    }
-
-    if (photos.some((photo) => !isHttpURL(photo))) {
-      setAddPropertyError(
-        "Todas as fotos precisam ser URLs válidas com http/https.",
-      );
+    if (novoImovelFiles.length === 0) {
+      setAddPropertyError("Anexe pelo menos uma foto do imóvel.");
       return;
     }
 
@@ -548,34 +548,36 @@ export default function App() {
         novoImovelForm.cidade,
       );
 
-      await imoveisService.create({
-        idUsuario: user.idUsuario,
-        titulo: novoImovelForm.titulo,
-        descricao: novoImovelForm.descricao,
-        endereco: {
-          rua: novoImovelForm.rua,
-          numero: novoImovelForm.numero,
-          bairro: novoImovelForm.bairro,
+      await imoveisService.createWithFiles(
+        {
+          idUsuario: user.idUsuario,
+          titulo: novoImovelForm.titulo,
+          descricao: novoImovelForm.descricao,
+          endereco: {
+            rua: novoImovelForm.rua,
+            numero: novoImovelForm.numero,
+            bairro: novoImovelForm.bairro,
+            cidade: novoImovelForm.cidade,
+            estado: novoImovelForm.estado,
+            cep: novoImovelForm.cep,
+          },
+          comodidades: novoImovelForm.comodidades
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((nome) => ({ nome })),
           cidade: novoImovelForm.cidade,
-          estado: novoImovelForm.estado,
-          cep: novoImovelForm.cep,
+          latitude: coords?.[0] ?? 0,
+          longitude: coords?.[1] ?? 0,
+          valorDiaria: Number(novoImovelForm.valorDiaria),
+          dataCadastro: new Date().toISOString().slice(0, 10),
+          ativo: true,
         },
-        comodidades: novoImovelForm.comodidades
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean)
-          .map((nome) => ({ nome })),
-        cidade: novoImovelForm.cidade,
-        latitude: coords?.[0] ?? 0,
-        longitude: coords?.[1] ?? 0,
-        valorDiaria: Number(novoImovelForm.valorDiaria),
-        dataCadastro: new Date().toISOString().slice(0, 10),
-        fotos: photos,
-        ativo: true,
-      });
+        novoImovelFiles,
+      );
 
       setShowAddPropertyModal(false);
       setNovoImovelForm(initialNovoImovelForm);
+      setNovoImovelFiles([]);
 
       try {
         const me = await authService.me();
@@ -738,6 +740,17 @@ export default function App() {
         form={novoImovelForm}
         onChange={(field, value) => {
           setNovoImovelForm((prev) => ({ ...prev, [field]: value }));
+        }}
+        onToggleAmenity={(amenity) => {
+          setNovoImovelForm((prev) => ({
+            ...prev,
+            comodidades: prev.comodidades.includes(amenity)
+              ? prev.comodidades.filter((c) => c !== amenity)
+              : [...prev.comodidades, amenity],
+          }));
+        }}
+        onFilesChange={(files) => {
+          setNovoImovelFiles(Array.from(files ?? []));
         }}
         onSubmit={handleCreateProperty}
         loading={addPropertyLoading}

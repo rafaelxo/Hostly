@@ -5,6 +5,7 @@ import (
 	"backend/internal/adapters/repository"
 	web "backend/internal/adapters/web"
 	aeduc "backend/internal/usecase/aed"
+	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
@@ -29,10 +30,16 @@ func main() {
 		log.Fatalf("erro ao inicializar repositorio de reservas: %v", err)
 	}
 
+	amenityRepo, err := repository.NewAmenityFileRepository("data/comodidades.db")
+	if err != nil {
+		log.Fatalf("erro ao inicializar repositorio de comodidades: %v", err)
+	}
+
 	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
 	paymentGateway := payment.NewSimulatedGateway()
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
+	amenityService := amenityuc.NewService(amenityRepo)
 	aedService := aeduc.NewService(
 		propertyService,
 		reservationService,
@@ -55,16 +62,21 @@ func main() {
 		log.Fatalf("erro ao criar admin padrao: %v", err)
 	}
 
+	if err := amenityService.SeedCommonAmenities(); err != nil {
+		log.Fatalf("erro ao preparar comodidades iniciais: %v", err)
+	}
+
 	router := web.NewRouter(web.Dependencies{
 		PropertyService:    propertyService,
 		UserService:        userService,
 		ReservationService: reservationService,
 		AuthService:        authService,
+		AmenityService:     amenityService,
 		AEDService:         aedService,
 	})
 
-	addr := ":8080"
-	log.Printf("Hostly backend iniciado em %s", addr)
+	addr := "8080"
+	log.Printf("Hostly backend iniciado em: %s", addr)
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("erro ao iniciar servidor: %v", err)
 	}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   ErrorMsg,
@@ -15,7 +15,9 @@ import {
   IconPlus,
   IconSearch,
   IconTrash,
+  IconUpload,
 } from "../components/icons";
+import { COMMON_AMENITIES } from "../constants/amenities";
 import { useUsuarios } from "../hooks/useData";
 import { imoveisService, type Imovel } from "../services/api";
 import { geocodeAddressInput } from "../services/geocoding";
@@ -33,7 +35,7 @@ type FormState = {
   estado: string;
   cep: string;
   valorDiaria: string;
-  comodidades: string;
+  comodidades: string[];
   fotos: string;
   ativo: boolean;
 };
@@ -49,7 +51,7 @@ const initialForm: FormState = {
   estado: "",
   cep: "",
   valorDiaria: "",
-  comodidades: "",
+  comodidades: [],
   fotos: "",
   ativo: true,
 };
@@ -83,9 +85,13 @@ export function ImoveisPage({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  const [editPhotoFiles, setEditPhotoFiles] = useState<File[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
+  const newPhotosInputRef = useRef<HTMLInputElement | null>(null);
+  const editPhotosInputRef = useRef<HTMLInputElement | null>(null);
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -106,11 +112,11 @@ export function ImoveisPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [ownerId, ordenarPor, ordem, filtroValorDiaria]);
 
   useEffect(() => {
     void refetch();
-  }, [ownerId, ordenarPor, ordem, filtroValorDiaria]);
+  }, [refetch]);
 
   const filtered = useMemo(
     () =>
@@ -123,12 +129,13 @@ export function ImoveisPage({
     [imoveis, onlyActive, search],
   );
 
-  const set = (k: keyof FormState, v: string | boolean) =>
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const startNew = () => {
     setEditingId(null);
     setFormError(null);
+    setNewPhotoFiles([]);
     setForm({
       ...initialForm,
       idUsuario: ownerId ? String(ownerId) : "",
@@ -139,6 +146,7 @@ export function ImoveisPage({
   const startEdit = (item: Imovel) => {
     setEditingId(item.idImovel);
     setFormError(null);
+    setEditPhotoFiles([]);
     setForm({
       idUsuario: String(item.idUsuario),
       titulo: item.titulo,
@@ -150,7 +158,7 @@ export function ImoveisPage({
       estado: item.endereco?.estado ?? "",
       cep: item.endereco?.cep ?? "",
       valorDiaria: String(item.valorDiaria),
-      comodidades: (item.comodidades ?? []).map((c) => c.nome).join(", "),
+      comodidades: (item.comodidades ?? []).map((c) => c.nome),
       fotos: item.fotos.join(", "),
       ativo: item.ativo,
     });
@@ -172,9 +180,13 @@ export function ImoveisPage({
       .map((f) => f.trim())
       .filter(Boolean);
 
-    if (fotos.length === 0) {
+    if (view === "new" && newPhotoFiles.length === 0) {
       setFormError("Informe ao menos uma foto válida do imóvel.");
       return;
+    }
+
+    if (view !== "new" && fotos.length === 0) {
+      // In edit mode, existing photos can be kept without re-upload.
     }
 
     if (Number(form.valorDiaria) <= 0) {
@@ -209,7 +221,6 @@ export function ImoveisPage({
           cep: form.cep,
         },
         comodidades: form.comodidades
-          .split(",")
           .map((nome) => nome.trim())
           .filter(Boolean)
           .map((nome) => ({ nome })),
@@ -223,13 +234,19 @@ export function ImoveisPage({
       };
 
       if (view === "new") {
-        await imoveisService.create(payload);
+        await imoveisService.createWithFiles(payload, newPhotoFiles);
       } else if (editingId) {
-        await imoveisService.update(editingId, payload);
+        await imoveisService.updateWithFiles(
+          editingId,
+          payload,
+          editPhotoFiles,
+        );
       }
       await refetch();
       setView("list");
       setForm(initialForm);
+      setNewPhotoFiles([]);
+      setEditPhotoFiles([]);
       setEditingId(null);
     } finally {
       setSaving(false);
@@ -356,22 +373,94 @@ export function ImoveisPage({
                 </Field>
               </div>
               <div className="md:col-span-2">
-                <Field label="Fotos (URLs separadas por vírgula)">
-                  <input
-                    className={inputCls}
-                    value={form.fotos}
-                    onChange={(e) => set("fotos", e.target.value)}
-                  />
+                <Field label="Fotos do imóvel">
+                  {view === "new" ? (
+                    <>
+                      <input
+                        ref={newPhotosInputRef}
+                        className="hidden"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        multiple
+                        aria-label="Anexar fotos do imóvel"
+                        onChange={(e) =>
+                          setNewPhotoFiles(Array.from(e.target.files ?? []))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="w-full min-h-28 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 hover:border-amber-400 hover:bg-amber-50/30 transition-colors flex items-center justify-center"
+                        onClick={() => newPhotosInputRef.current?.click()}
+                      >
+                        <div className="flex flex-col items-center gap-1 text-stone-600">
+                          <span className="text-amber-500">
+                            <IconUpload />
+                          </span>
+                          <span className="text-sm font-semibold">
+                            Escolher arquivos
+                          </span>
+                        </div>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        ref={editPhotosInputRef}
+                        className="hidden"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        multiple
+                        aria-label="Anexar novas fotos do imóvel"
+                        onChange={(e) =>
+                          setEditPhotoFiles(Array.from(e.target.files ?? []))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="w-full min-h-28 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 hover:border-amber-400 hover:bg-amber-50/30 transition-colors flex items-center justify-center"
+                        onClick={() => editPhotosInputRef.current?.click()}
+                      >
+                        <div className="flex flex-col items-center gap-1 text-stone-600">
+                          <span className="text-amber-500">
+                            <IconUpload />
+                          </span>
+                          <span className="text-sm font-semibold">
+                            Escolher arquivos
+                          </span>
+                        </div>
+                      </button>
+                    </>
+                  )}
                 </Field>
               </div>
               <div className="md:col-span-2">
-                <Field label="Comodidades (separadas por vírgula)">
-                  <input
-                    className={inputCls}
-                    value={form.comodidades}
-                    onChange={(e) => set("comodidades", e.target.value)}
-                    placeholder="Wi-Fi, Ar-condicionado, Piscina"
-                  />
+                <Field label="Comodidades">
+                  <div className="flex flex-wrap gap-2">
+                    {COMMON_AMENITIES.map((amenity) => {
+                      const selected = form.comodidades.includes(amenity);
+                      return (
+                        <button
+                          key={amenity}
+                          type="button"
+                          onClick={() =>
+                            set(
+                              "comodidades",
+                              selected
+                                ? form.comodidades.filter((c) => c !== amenity)
+                                : [...form.comodidades, amenity],
+                            )
+                          }
+                          className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                            selected
+                              ? "bg-amber-100 border-amber-300 text-amber-700"
+                              : "bg-white border-stone-200 text-stone-600 hover:border-amber-300"
+                          }`}
+                        >
+                          {amenity}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </Field>
               </div>
             </div>

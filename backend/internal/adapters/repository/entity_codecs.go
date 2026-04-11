@@ -14,6 +14,7 @@ const (
 	entityTypeProperty              = 1
 	entityTypeUser                  = 2
 	entityTypeReservation           = 3
+	entityTypeAmenity               = 4
 	propertyFieldIDID               = 1
 	propertyFieldIDUserID           = 2
 	propertyFieldIDTitle            = 3
@@ -43,6 +44,10 @@ const (
 	reservationFieldIDPaymentMethod = 8
 	reservationFieldIDPaymentStatus = 9
 	reservationFieldIDConfirmedAt   = 10
+	amenityFieldIDName              = 1
+	amenityFieldIDDescription       = 2
+	amenityFieldIDIcon              = 3
+	amenityFieldIDActive            = 4
 	userTypeAdmin                   = uint8(1)
 	userTypeHost                    = uint8(2)
 	userTypeGuest                   = uint8(3)
@@ -71,6 +76,13 @@ func reservationPayloadCodec() payloadCodec[domain.Reservation] {
 	return payloadCodec[domain.Reservation]{
 		encode: encodeReservation,
 		decode: decodeReservation,
+	}
+}
+
+func amenityPayloadCodec() payloadCodec[domain.AmenityCatalogItem] {
+	return payloadCodec[domain.AmenityCatalogItem]{
+		encode: encodeAmenity,
+		decode: decodeAmenity,
 	}
 }
 
@@ -565,6 +577,53 @@ func decodeReservationLegacy(payload []byte, id int) (domain.Reservation, error)
 	}
 
 	item.SetDefaults()
+
+	return item, nil
+}
+
+func encodeAmenity(item domain.AmenityCatalogItem) ([]byte, error) {
+	fields := make([]recordField, 0, 4)
+	fields = append(fields, recordField{id: amenityFieldIDName, data: []byte(item.Name)})
+	fields = append(fields, recordField{id: amenityFieldIDDescription, data: []byte(item.Description)})
+	fields = append(fields, recordField{id: amenityFieldIDIcon, data: []byte(item.Icon)})
+
+	activeData, err := encodeBoolData(item.Active)
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: amenityFieldIDActive, data: activeData})
+
+	return encodeStandardPayload(entityTypeAmenity, fields)
+}
+
+func decodeAmenity(payload []byte, id int) (domain.AmenityCatalogItem, error) {
+	fields, err := decodeStandardPayload(payload, entityTypeAmenity)
+	if err != nil {
+		return domain.AmenityCatalogItem{}, err
+	}
+
+	nameData, err := requiredField(fields, amenityFieldIDName)
+	if err != nil {
+		return domain.AmenityCatalogItem{}, err
+	}
+
+	descData, _ := optionalField(fields, amenityFieldIDDescription)
+	iconData, _ := optionalField(fields, amenityFieldIDIcon)
+
+	item := domain.AmenityCatalogItem{
+		ID:          id,
+		Name:        string(nameData),
+		Description: string(descData),
+		Icon:        string(iconData),
+		Active:      true,
+	}
+
+	if activeData, ok := optionalField(fields, amenityFieldIDActive); ok {
+		item.Active, err = decodeBoolData(activeData)
+		if err != nil {
+			return domain.AmenityCatalogItem{}, err
+		}
+	}
 
 	return item, nil
 }

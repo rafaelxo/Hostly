@@ -205,3 +205,18 @@ export const IconEye = () => (
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
+
+export const IconUpload = () => (
+  <svg
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    viewBox="0 0 24 24"
+  >
+    <path d="M12 16V4" />
+    <path d="M7 9l5-5 5 5" />
+    <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+  </svg>
+);

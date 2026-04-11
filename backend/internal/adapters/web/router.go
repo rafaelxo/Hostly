@@ -3,6 +3,7 @@ package web
 import (
 	"backend/internal/adapters/web/handler"
 	aeduc "backend/internal/usecase/aed"
+	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
@@ -15,6 +16,7 @@ type Dependencies struct {
 	UserService        useruc.Service
 	ReservationService reservationuc.Service
 	AuthService        authuc.Service
+	AmenityService     amenityuc.Service
 	AEDService         aeduc.Service
 }
 
@@ -24,6 +26,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	reservs := handler.NewReservationHandler(deps.ReservationService)
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)
 	auth := handler.NewAuthHandler(deps.AuthService)
+	amenities := handler.NewAmenityHandler(deps.AmenityService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +62,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /auth/me", auth.Me)
 
 	mux.HandleFunc("GET /dashboard/stats", dash.Stats)
+	mux.HandleFunc("GET /comodidades", amenities.List)
 
 	return withCORS(mux)
 }

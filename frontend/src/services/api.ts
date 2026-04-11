@@ -27,6 +27,14 @@ export interface Imovel {
   ativo: boolean;
 }
 
+export interface ComodidadeCatalogo {
+  idComodidade: number;
+  nome: string;
+  descricao?: string;
+  icone?: string;
+  ativo: boolean;
+}
+
 export interface Anfitriao {
   idUsuario: number;
   nome: string;
@@ -183,6 +191,73 @@ export const imoveisService = {
       body: JSON.stringify(data),
     });
   },
+  async createWithFiles(
+    data: Omit<Imovel, "idImovel" | "fotos">,
+    files: File[],
+  ): Promise<Imovel> {
+    const formData = new FormData();
+    formData.append("idUsuario", String(data.idUsuario));
+    formData.append("titulo", data.titulo);
+    formData.append("descricao", data.descricao);
+    formData.append("cidade", data.cidade);
+    formData.append("latitude", String(data.latitude ?? 0));
+    formData.append("longitude", String(data.longitude ?? 0));
+    formData.append("valorDiaria", String(data.valorDiaria));
+    formData.append("dataCadastro", data.dataCadastro);
+    formData.append("ativo", String(data.ativo));
+
+    formData.append("endereco.rua", data.endereco.rua);
+    formData.append("endereco.numero", data.endereco.numero);
+    formData.append("endereco.bairro", data.endereco.bairro);
+    formData.append("endereco.cidade", data.endereco.cidade);
+    formData.append("endereco.estado", data.endereco.estado);
+    formData.append("endereco.cep", data.endereco.cep);
+
+    formData.append("comodidades", JSON.stringify(data.comodidades));
+
+    files.forEach((file) => {
+      formData.append("fotos", file);
+    });
+
+    return request<Imovel>("/imoveis", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  async updateWithFiles(
+    id: number,
+    data: Omit<Imovel, "idImovel" | "fotos">,
+    files?: File[],
+  ): Promise<Imovel> {
+    const formData = new FormData();
+    formData.append("idUsuario", String(data.idUsuario));
+    formData.append("titulo", data.titulo);
+    formData.append("descricao", data.descricao);
+    formData.append("cidade", data.cidade);
+    formData.append("latitude", String(data.latitude ?? 0));
+    formData.append("longitude", String(data.longitude ?? 0));
+    formData.append("valorDiaria", String(data.valorDiaria));
+    formData.append("dataCadastro", data.dataCadastro);
+    formData.append("ativo", String(data.ativo));
+
+    formData.append("endereco.rua", data.endereco.rua);
+    formData.append("endereco.numero", data.endereco.numero);
+    formData.append("endereco.bairro", data.endereco.bairro);
+    formData.append("endereco.cidade", data.endereco.cidade);
+    formData.append("endereco.estado", data.endereco.estado);
+    formData.append("endereco.cep", data.endereco.cep);
+
+    formData.append("comodidades", JSON.stringify(data.comodidades));
+
+    (files ?? []).forEach((file) => {
+      formData.append("fotos", file);
+    });
+
+    return request<Imovel>(`/imoveis/${id}`, {
+      method: "PUT",
+      body: formData,
+    });
+  },
   async update(id: number, data: Partial<Imovel>): Promise<Imovel> {
     return request<Imovel>(`/imoveis/${id}`, {
       method: "PUT",
@@ -295,6 +370,12 @@ export const reservaService = {
 export const dashboardService = {
   async getStats(): Promise<DashboardStats> {
     return request<DashboardStats>("/dashboard/stats");
+  },
+};
+
+export const comodidadeService = {
+  async getAll(): Promise<ComodidadeCatalogo[]> {
+    return request<ComodidadeCatalogo[]>("/comodidades");
   },
 };
 

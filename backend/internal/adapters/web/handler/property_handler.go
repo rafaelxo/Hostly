@@ -4,9 +4,13 @@ import (
 	"backend/internal/domain"
 	aeduc "backend/internal/usecase/aed"
 	"backend/internal/usecase/property"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type createPropertyRequest struct {
@@ -125,6 +129,22 @@ func (h *PropertyHandler) ListByOwner(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PropertyHandler) Create(w http.ResponseWriter, r *http.Request) {
+	if strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") {
+		payload, err := parsePropertyFromMultipart(r)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		created, err := h.svc.Create(payload)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusCreated, created)
+		return
+	}
+
 	var req createPropertyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, err)
@@ -172,6 +192,23 @@ func (h *PropertyHandler) Update(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err)
 		return
 	}
+
+	if strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") {
+		patch, err := parsePropertyPatchFromMultipart(r)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		updated, err := h.svc.Patch(id, patch)
+		if err != nil {
+			respondDomainError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, updated)
+		return
+	}
+
 	var payload propertyUpdatePayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		respondError(w, http.StatusBadRequest, err)
@@ -267,4 +304,271 @@ func (h *PropertyHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func parsePropertyFromMultipart(r *http.Request) (domain.Property, error) {
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		return domain.Property{}, err
+	}
+
+	toInt := func(key string) (int, error) {
+		value := strings.TrimSpace(r.FormValue(key))
+		if value == "" {
+			return 0, fmt.Errorf("campo %s obrigatorio", key)
+		}
+		return strconv.Atoi(value)
+	}
+
+	toFloat := func(key string) (float64, error) {
+		value := strings.TrimSpace(r.FormValue(key))
+		if value == "" {
+			return 0, nil
+		}
+		return strconv.ParseFloat(value, 64)
+	}
+
+	userID, err := toInt("idUsuario")
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	dailyRate, err := strconv.ParseFloat(strings.TrimSpace(r.FormValue("valorDiaria")), 64)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	active := true
+	if raw := strings.TrimSpace(r.FormValue("ativo")); raw != "" {
+		active, err = strconv.ParseBool(raw)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	}
+
+	latitude, err := toFloat("latitude")
+	if err != nil {
+		return domain.Property{}, err
+	}
+	longitude, err := toFloat("longitude")
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	amenitiesRaw := strings.TrimSpace(r.FormValue("comodidades"))
+	amenities := []domain.Amenity{}
+	if amenitiesRaw != "" {
+		if err := json.Unmarshal([]byte(amenitiesRaw), &amenities); err != nil {
+			return domain.Property{}, err
+		}
+	}
+
+	photos, err := extractUploadedPhotos(r)
+	if err != nil {
+		return domain.Property{}, err
+	}
+
+	return domain.Property{
+		UserID:      userID,
+		Title:       strings.TrimSpace(r.FormValue("titulo")),
+		Description: strings.TrimSpace(r.FormValue("descricao")),
+		Address: domain.Address{
+			Street:       strings.TrimSpace(r.FormValue("endereco.rua")),
+			Number:       strings.TrimSpace(r.FormValue("endereco.numero")),
+			Neighborhood: strings.TrimSpace(r.FormValue("endereco.bairro")),
+			City:         strings.TrimSpace(r.FormValue("endereco.cidade")),
+			State:        strings.TrimSpace(r.FormValue("endereco.estado")),
+			ZipCode:      strings.TrimSpace(r.FormValue("endereco.cep")),
+		},
+		Amenities: amenities,
+		City:      strings.TrimSpace(r.FormValue("cidade")),
+		Latitude:  latitude,
+		Longitude: longitude,
+		DailyRate: dailyRate,
+		CreatedAt: strings.TrimSpace(r.FormValue("dataCadastro")),
+		Photos:    photos,
+		Active:    active,
+	}, nil
+}
+
+func parsePropertyPatchFromMultipart(r *http.Request) (property.PropertyPatch, error) {
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	mustInt := func(key string) (*int, error) {
+		value := strings.TrimSpace(r.FormValue(key))
+		if value == "" {
+			return nil, fmt.Errorf("campo %s obrigatorio", key)
+		}
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, err
+		}
+		return &parsed, nil
+	}
+
+	mustFloat := func(key string) (*float64, error) {
+		value := strings.TrimSpace(r.FormValue(key))
+		if value == "" {
+			return nil, fmt.Errorf("campo %s obrigatorio", key)
+		}
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, err
+		}
+		return &parsed, nil
+	}
+
+	mustString := func(key string) (*string, error) {
+		value := strings.TrimSpace(r.FormValue(key))
+		if value == "" {
+			return nil, fmt.Errorf("campo %s obrigatorio", key)
+		}
+		return &value, nil
+	}
+
+	userID, err := mustInt("idUsuario")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	title, err := mustString("titulo")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	description, err := mustString("descricao")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	city, err := mustString("cidade")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	dailyRate, err := mustFloat("valorDiaria")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	createdAt, err := mustString("dataCadastro")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	latitude, err := mustFloat("latitude")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	longitude, err := mustFloat("longitude")
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	activeRaw := strings.TrimSpace(r.FormValue("ativo"))
+	if activeRaw == "" {
+		return property.PropertyPatch{}, fmt.Errorf("campo ativo obrigatorio")
+	}
+	active, err := strconv.ParseBool(activeRaw)
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	amenitiesRaw := strings.TrimSpace(r.FormValue("comodidades"))
+	amenities := []domain.Amenity{}
+	if amenitiesRaw != "" {
+		if err := json.Unmarshal([]byte(amenitiesRaw), &amenities); err != nil {
+			return property.PropertyPatch{}, err
+		}
+	}
+
+	photos, err := extractUploadedPhotosOptional(r)
+	if err != nil {
+		return property.PropertyPatch{}, err
+	}
+
+	address := &domain.Address{
+		Street:       strings.TrimSpace(r.FormValue("endereco.rua")),
+		Number:       strings.TrimSpace(r.FormValue("endereco.numero")),
+		Neighborhood: strings.TrimSpace(r.FormValue("endereco.bairro")),
+		City:         strings.TrimSpace(r.FormValue("endereco.cidade")),
+		State:        strings.TrimSpace(r.FormValue("endereco.estado")),
+		ZipCode:      strings.TrimSpace(r.FormValue("endereco.cep")),
+	}
+
+	patch := property.PropertyPatch{
+		UserID:      userID,
+		Title:       title,
+		Description: description,
+		Address:     address,
+		Amenities:   &amenities,
+		City:        city,
+		Latitude:    latitude,
+		Longitude:   longitude,
+		DailyRate:   dailyRate,
+		CreatedAt:   createdAt,
+		Active:      &active,
+	}
+
+	if photos != nil {
+		patch.Photos = photos
+	}
+
+	return patch, nil
+}
+
+func extractUploadedPhotos(r *http.Request) ([]string, error) {
+	files := r.MultipartForm.File["fotos"]
+	if len(files) == 0 {
+		return nil, fmt.Errorf("pelo menos uma foto e obrigatoria")
+	}
+
+	photos := make([]string, 0, len(files))
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			return nil, err
+		}
+		if len(data) == 0 {
+			continue
+		}
+
+		contentType := header.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = http.DetectContentType(data)
+		}
+		if !strings.HasPrefix(contentType, "image/") {
+			return nil, fmt.Errorf("arquivo %s nao e imagem valida", header.Filename)
+		}
+
+		encoded := base64.StdEncoding.EncodeToString(data)
+		photos = append(photos, "data:"+contentType+";base64,"+encoded)
+	}
+
+	if len(photos) == 0 {
+		return nil, fmt.Errorf("pelo menos uma foto e obrigatoria")
+	}
+
+	return photos, nil
+}
+
+func extractUploadedPhotosOptional(r *http.Request) (*[]string, error) {
+	files := r.MultipartForm.File["fotos"]
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	photos, err := extractUploadedPhotos(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &photos, nil
 }

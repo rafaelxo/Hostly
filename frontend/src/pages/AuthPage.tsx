@@ -1,6 +1,7 @@
 import { useState } from "react";
 import logoImg from "../assets/logo.png";
 import { ErrorMsg, Field, FormCard, inputCls } from "../components/common";
+import { COMMON_AMENITIES } from "../constants/amenities";
 import { authService } from "../services/api";
 
 type AuthPageProps = {
@@ -30,9 +31,17 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [imovelBairro, setImovelBairro] = useState("");
   const [imovelEstado, setImovelEstado] = useState("");
   const [imovelCep, setImovelCep] = useState("");
-  const [imovelFoto, setImovelFoto] = useState("");
-  const [imovelComodidades, setImovelComodidades] = useState("");
+  const [imovelFoto, setImovelFoto] = useState<File | null>(null);
+  const [imovelComodidades, setImovelComodidades] = useState<string[]>([]);
   const [imovelDiaria, setImovelDiaria] = useState("");
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Falha ao ler a imagem."));
+      reader.readAsDataURL(file);
+    });
 
   function evaluatePassword(pw: string) {
     let score = 0;
@@ -86,6 +95,16 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
     setLoading(true);
     setError(null);
     try {
+      let initialPhoto: string | null = null;
+      if (regMode === "anfitriao") {
+        if (!imovelFoto) {
+          setError("Anexe ao menos uma foto do imóvel inicial.");
+          setLoading(false);
+          return;
+        }
+        initialPhoto = await fileToDataUrl(imovelFoto);
+      }
+
       await authService.register({
         nome: regNome,
         email: regEmail,
@@ -105,14 +124,13 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                   cep: imovelCep,
                 },
                 comodidades: imovelComodidades
-                  .split(",")
                   .map((item) => item.trim())
                   .filter(Boolean)
                   .map((nome) => ({ nome })),
                 cidade: imovelCidade,
                 valorDiaria: Number(imovelDiaria),
                 dataCadastro: new Date().toISOString().slice(0, 10),
-                fotos: [imovelFoto],
+                fotos: initialPhoto ? [initialPhoto] : [],
                 ativo: true,
               },
             }
@@ -333,20 +351,43 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                         required
                       />
                     </Field>
-                    <Field label="Foto principal (URL)" required>
+                    <Field label="Foto principal" required>
                       <input
                         className={inputCls}
-                        value={imovelFoto}
-                        onChange={(e) => setImovelFoto(e.target.value)}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(e) =>
+                          setImovelFoto(e.target.files?.[0] ?? null)
+                        }
                         required
                       />
                     </Field>
-                    <Field label="Comodidades (separadas por vírgula)">
-                      <input
-                        className={inputCls}
-                        value={imovelComodidades}
-                        onChange={(e) => setImovelComodidades(e.target.value)}
-                      />
+                    <Field label="Comodidades">
+                      <div className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
+                        {COMMON_AMENITIES.map((amenity) => {
+                          const selected = imovelComodidades.includes(amenity);
+                          return (
+                            <button
+                              key={amenity}
+                              type="button"
+                              onClick={() =>
+                                setImovelComodidades((prev) =>
+                                  selected
+                                    ? prev.filter((c) => c !== amenity)
+                                    : [...prev, amenity],
+                                )
+                              }
+                              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                                selected
+                                  ? "bg-amber-100 border-amber-300 text-amber-700"
+                                  : "bg-white border-stone-200 text-stone-600 hover:border-amber-300"
+                              }`}
+                            >
+                              {amenity}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </Field>
                   </div>
                 )}
