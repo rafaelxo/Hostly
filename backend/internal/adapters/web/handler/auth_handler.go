@@ -15,6 +15,7 @@ type AuthHandler struct {
 type registerRequest struct {
 	Name     string `json:"nome"`
 	Email    string `json:"email"`
+	Phone    string `json:"telefone"`
 	Password string `json:"senha"`
 	AsHost   bool   `json:"comoAnfitriao"`
 	Property *struct {
@@ -81,6 +82,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	session, err := h.svc.Register(authuc.RegisterInput{
 		Name:            req.Name,
 		Email:           req.Email,
+		Phone:           req.Phone,
 		Password:        req.Password,
 		CreateAsHost:    req.AsHost,
 		InitialProperty: initialProperty,

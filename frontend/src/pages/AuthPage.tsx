@@ -21,6 +21,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
   const [regNome, setRegNome] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regTelefone, setRegTelefone] = useState("");
   const [regSenha, setRegSenha] = useState("");
   const [regMode, setRegMode] = useState<RegisterMode>("hospede");
   const [imovelTitulo, setImovelTitulo] = useState("");
@@ -108,6 +109,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
       await authService.register({
         nome: regNome,
         email: regEmail,
+        telefone: regTelefone,
         senha: regSenha,
         comoAnfitriao: regMode === "anfitriao",
         ...(regMode === "anfitriao"
@@ -240,6 +242,14 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                     type="email"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Telefone" required>
+                  <input
+                    className={inputCls}
+                    value={regTelefone}
+                    onChange={(e) => setRegTelefone(e.target.value)}
                     required
                   />
                 </Field>

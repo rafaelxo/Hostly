@@ -17,6 +17,7 @@ type PropertyService interface {
 type RegisterInput struct {
 	Name            string
 	Email           string
+	Phone           string
 	Password        string
 	CreateAsHost    bool
 	InitialProperty *domain.Property

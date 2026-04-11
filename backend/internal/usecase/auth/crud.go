@@ -33,6 +33,7 @@ func (s *service) Register(input RegisterInput) (Session, error) {
 	user, err := s.userSvc.Create(domain.User{
 		Name:     strings.TrimSpace(input.Name),
 		Email:    strings.TrimSpace(strings.ToLower(input.Email)),
+		Phone:    strings.TrimSpace(input.Phone),
 		Password: input.Password,
 		Type:     userType,
 		Active:   true,

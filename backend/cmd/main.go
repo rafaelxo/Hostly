@@ -7,6 +7,7 @@ import (
 	aeduc "backend/internal/usecase/aed"
 	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
+	chatuc "backend/internal/usecase/chat"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -35,11 +36,17 @@ func main() {
 		log.Fatalf("erro ao inicializar repositorio de comodidades: %v", err)
 	}
 
+	chatRepo, err := repository.NewChatMessageFileRepository("data/chat.db")
+	if err != nil {
+		log.Fatalf("erro ao inicializar repositorio de chat: %v", err)
+	}
+
 	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
 	paymentGateway := payment.NewSimulatedGateway()
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
 	amenityService := amenityuc.NewService(amenityRepo)
+	chatService := chatuc.NewService(chatRepo, userRepo, reservationRepo, propertyRepo)
 	aedService := aeduc.NewService(
 		propertyService,
 		reservationService,
@@ -72,11 +79,12 @@ func main() {
 		ReservationService: reservationService,
 		AuthService:        authService,
 		AmenityService:     amenityService,
+		ChatService:        chatService,
 		AEDService:         aedService,
 	})
 
-	addr := "8080"
-	log.Printf("Hostly backend iniciado em: %s", addr)
+	addr := ":8080"
+	log.Printf("Hostly backend iniciado em %s", addr)
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("erro ao iniciar servidor: %v", err)
 	}

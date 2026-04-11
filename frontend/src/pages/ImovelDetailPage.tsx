@@ -25,6 +25,7 @@ type Props = {
   onEdit?: (imovel: Imovel) => void;
   canManage?: boolean;
   onNewReserva?: (imovelId: number) => void;
+  onStartChat?: (hostUserId: number, propertyId: number) => void;
 };
 
 export function ImovelDetailPage({
@@ -33,6 +34,7 @@ export function ImovelDetailPage({
   onEdit,
   canManage = false,
   onNewReserva,
+  onStartChat,
 }: Props) {
   const [imovel, setImovel] = useState<Imovel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +115,14 @@ export function ImovelDetailPage({
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 transition-colors shadow-sm"
           >
             <IconCalendar /> Reservar
+          </button>
+        )}
+        {onStartChat && (
+          <button
+            onClick={() => onStartChat(imovel.idUsuario, imovel.idImovel)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+          >
+            Tirar dúvidas
           </button>
         )}
       </div>

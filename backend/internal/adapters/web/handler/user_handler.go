@@ -11,6 +11,7 @@ import (
 type createUserRequest struct {
 	Name     string          `json:"nome"`
 	Email    string          `json:"email"`
+	Phone    string          `json:"telefone"`
 	Password string          `json:"senha"`
 	Type     domain.UserType `json:"tipo"`
 	Active   bool            `json:"ativo"`
@@ -19,6 +20,7 @@ type createUserRequest struct {
 type userUpdatePayload struct {
 	Name     *string          `json:"nome"`
 	Email    *string          `json:"email"`
+	Phone    *string          `json:"telefone"`
 	Password *string          `json:"senha"`
 	Type     *domain.UserType `json:"tipo"`
 	Active   *bool            `json:"ativo"`
@@ -41,6 +43,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	payload := domain.User{
 		Name:     req.Name,
 		Email:    req.Email,
+		Phone:    req.Phone,
 		Password: req.Password,
 		Type:     req.Type,
 		Active:   req.Active,
@@ -99,6 +102,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	updated, err := h.svc.Patch(id, useruc.UserPatch{
 		Name:     payload.Name,
 		Email:    payload.Email,
+		Phone:    payload.Phone,
 		Password: payload.Password,
 		Type:     payload.Type,
 		Active:   payload.Active,

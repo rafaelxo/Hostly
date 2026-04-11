@@ -21,6 +21,7 @@ type View = "list" | "new" | "edit";
 const initialForm = {
   nome: "",
   email: "",
+  telefone: "",
   senha: "",
   tipo: "ANFITRIAO" as UsuarioTipo,
   ativo: true,
@@ -61,6 +62,7 @@ export function AnfitrioesPage({
     setForm({
       nome: item.nome,
       email: item.email,
+      telefone: item.telefone ?? "",
       senha: "",
       tipo: item.tipo,
       ativo: item.ativo,
@@ -81,6 +83,7 @@ export function AnfitrioesPage({
       const payload = {
         nome: form.nome,
         email: form.email,
+        telefone: form.telefone,
         tipo: form.tipo,
         ativo: form.ativo,
         ...(form.senha ? { senha: form.senha } : {}),
@@ -128,6 +131,14 @@ export function AnfitrioesPage({
                   type="email"
                   value={form.email}
                   onChange={(e) => set("email", e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Telefone" required>
+                <input
+                  className={inputCls}
+                  value={form.telefone}
+                  onChange={(e) => set("telefone", e.target.value)}
                   required
                 />
               </Field>
@@ -235,6 +246,7 @@ export function AnfitrioesPage({
               </div>
               <p className="font-semibold text-stone-800">{a.nome}</p>
               <p className="text-sm text-stone-400 mt-0.5">{a.email}</p>
+              <p className="text-xs text-stone-500 mt-1">Telefone: {a.telefone || "—"}</p>
               <p className="text-xs text-stone-500 mt-1">Perfil: {a.tipo}</p>
               {canManage && (
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">

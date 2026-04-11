@@ -5,6 +5,7 @@ import "backend/internal/domain"
 type UserPatch struct {
 	Name     *string
 	Email    *string
+	Phone    *string
 	Password *string
 	Type     *domain.UserType
 	Active   *bool
@@ -96,6 +97,9 @@ func (s *service) Patch(id int, p UserPatch) (domain.User, error) {
 	if p.Email != nil {
 		existing.Email = *p.Email
 	}
+	if p.Phone != nil {
+		existing.Phone = *p.Phone
+	}
 	if p.Password != nil {
 		existing.Password = *p.Password
 	}
@@ -124,6 +128,7 @@ func (s *service) SeedAdmin(name string, email string, password string) (domain.
 	admin := domain.User{
 		Name:     name,
 		Email:    email,
+		Phone:    "",
 		Password: password,
 		Type:     domain.UserTypeAdmin,
 		Active:   true,

@@ -39,6 +39,7 @@ export interface Anfitriao {
   idUsuario: number;
   nome: string;
   email: string;
+  telefone?: string;
   tipo: "ANFITRIAO";
   ativo: boolean;
 }
@@ -49,8 +50,18 @@ export interface Usuario {
   idUsuario: number;
   nome: string;
   email: string;
+  telefone?: string;
   tipo: UsuarioTipo;
   ativo: boolean;
+}
+
+export interface ChatMensagem {
+  idMensagem: number;
+  idRemetente: number;
+  idDestinatario: number;
+  idImovel?: number;
+  conteudo: string;
+  dataCriacao: string;
 }
 
 export interface Session {
@@ -87,6 +98,7 @@ export interface DashboardStats {
 export type CreateUsuarioInput = {
   nome: string;
   email: string;
+  telefone?: string;
   senha?: string;
   tipo: UsuarioTipo;
   ativo: boolean;
@@ -294,6 +306,9 @@ export const usuarioService = {
   async getAll(): Promise<Usuario[]> {
     return request<Usuario[]>("/usuarios");
   },
+  async getById(id: number): Promise<Usuario> {
+    return request<Usuario>(`/usuarios/${id}`);
+  },
   async create(data: CreateUsuarioInput): Promise<Usuario> {
     return request<Usuario>("/usuarios", {
       method: "POST",
@@ -379,6 +394,38 @@ export const comodidadeService = {
   },
 };
 
+export const chatService = {
+  async getContacts(userId: number): Promise<Usuario[]> {
+    return request<Usuario[]>(`/chat/contatos?userId=${userId}`);
+  },
+  async getByUsers(
+    userId: number,
+    withUserId: number,
+    propertyId?: number,
+  ): Promise<ChatMensagem[]> {
+    const query = new URLSearchParams({
+      userId: String(userId),
+      withUserId: String(withUserId),
+    });
+    if (typeof propertyId === "number" && propertyId > 0) {
+      query.set("propertyId", String(propertyId));
+    }
+
+    return request<ChatMensagem[]>(`/chat?${query.toString()}`);
+  },
+  async send(data: {
+    idRemetente: number;
+    idDestinatario: number;
+    idImovel?: number;
+    conteudo: string;
+  }): Promise<ChatMensagem> {
+    return request<ChatMensagem>("/chat", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 export const authService = {
   async login(email: string, senha: string): Promise<Session> {
     const session = await request<Session>("/auth/login", {
@@ -391,6 +438,7 @@ export const authService = {
   async register(input: {
     nome: string;
     email: string;
+    telefone?: string;
     senha: string;
     comoAnfitriao: boolean;
     imovelInicial?: {

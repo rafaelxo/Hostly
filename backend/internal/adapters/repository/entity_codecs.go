@@ -15,6 +15,7 @@ const (
 	entityTypeUser                  = 2
 	entityTypeReservation           = 3
 	entityTypeAmenity               = 4
+	entityTypeChatMessage           = 5
 	propertyFieldIDID               = 1
 	propertyFieldIDUserID           = 2
 	propertyFieldIDTitle            = 3
@@ -34,6 +35,7 @@ const (
 	userFieldIDPassword             = 4
 	userFieldIDType                 = 5
 	userFieldIDActive               = 6
+	userFieldIDPhone                = 7
 	reservationFieldIDID            = 1
 	reservationFieldIDPropertyID    = 2
 	reservationFieldIDGuestID       = 3
@@ -48,6 +50,11 @@ const (
 	amenityFieldIDDescription       = 2
 	amenityFieldIDIcon              = 3
 	amenityFieldIDActive            = 4
+	chatMessageFieldIDFromUserID    = 1
+	chatMessageFieldIDToUserID      = 2
+	chatMessageFieldIDContent       = 3
+	chatMessageFieldIDCreatedAt     = 4
+	chatMessageFieldIDPropertyID    = 5
 	userTypeAdmin                   = uint8(1)
 	userTypeHost                    = uint8(2)
 	userTypeGuest                   = uint8(3)
@@ -83,6 +90,13 @@ func amenityPayloadCodec() payloadCodec[domain.AmenityCatalogItem] {
 	return payloadCodec[domain.AmenityCatalogItem]{
 		encode: encodeAmenity,
 		decode: decodeAmenity,
+	}
+}
+
+func chatMessagePayloadCodec() payloadCodec[domain.ChatMessage] {
+	return payloadCodec[domain.ChatMessage]{
+		encode: encodeChatMessage,
+		decode: decodeChatMessage,
 	}
 }
 
@@ -319,7 +333,7 @@ func decodePropertyLegacy(payload []byte, id int) (domain.Property, error) {
 }
 
 func encodeUser(item domain.User) ([]byte, error) {
-	fields := make([]recordField, 0, 5)
+	fields := make([]recordField, 0, 6)
 
 	fields = append(fields, recordField{id: userFieldIDName, data: []byte(item.Name)})
 	fields = append(fields, recordField{id: userFieldIDEmail, data: []byte(item.Email)})
@@ -341,6 +355,7 @@ func encodeUser(item domain.User) ([]byte, error) {
 		return nil, err
 	}
 	fields = append(fields, recordField{id: userFieldIDActive, data: activeData})
+	fields = append(fields, recordField{id: userFieldIDPhone, data: []byte(item.Phone)})
 
 	return encodeStandardPayload(entityTypeUser, fields)
 }
@@ -401,6 +416,10 @@ func decodeUserFromStandard(fields map[uint8][]byte, id int) (domain.User, error
 		return domain.User{}, err
 	}
 
+	if phoneData, ok := optionalField(fields, userFieldIDPhone); ok {
+		item.Phone = string(phoneData)
+	}
+
 	return item, nil
 }
 
@@ -435,8 +454,91 @@ func decodeUserLegacy(payload []byte, id int) (domain.User, error) {
 	if err != nil {
 		return domain.User{}, err
 	}
+	item.Phone = ""
 
 	return item, nil
+}
+
+func encodeChatMessage(item domain.ChatMessage) ([]byte, error) {
+	fields := make([]recordField, 0, 5)
+
+	fromIDData, err := encodeInt32Data(int32(item.FromUserID))
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: chatMessageFieldIDFromUserID, data: fromIDData})
+
+	toIDData, err := encodeInt32Data(int32(item.ToUserID))
+	if err != nil {
+		return nil, err
+	}
+	fields = append(fields, recordField{id: chatMessageFieldIDToUserID, data: toIDData})
+
+	fields = append(fields, recordField{id: chatMessageFieldIDContent, data: []byte(item.Content)})
+	fields = append(fields, recordField{id: chatMessageFieldIDCreatedAt, data: []byte(item.CreatedAt)})
+
+	if item.PropertyID > 0 {
+		propertyIDData, err := encodeInt32Data(int32(item.PropertyID))
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, recordField{id: chatMessageFieldIDPropertyID, data: propertyIDData})
+	}
+
+	return encodeStandardPayload(entityTypeChatMessage, fields)
+}
+
+func decodeChatMessage(payload []byte, id int) (domain.ChatMessage, error) {
+	fields, err := decodeStandardPayload(payload, entityTypeChatMessage)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+
+	fromIDData, err := requiredField(fields, chatMessageFieldIDFromUserID)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+	fromID, err := decodeInt32Data(fromIDData)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+
+	toIDData, err := requiredField(fields, chatMessageFieldIDToUserID)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+	toID, err := decodeInt32Data(toIDData)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+
+	contentData, err := requiredField(fields, chatMessageFieldIDContent)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+
+	createdAtData, err := requiredField(fields, chatMessageFieldIDCreatedAt)
+	if err != nil {
+		return domain.ChatMessage{}, err
+	}
+
+	propertyID := 0
+	if propertyIDData, ok := optionalField(fields, chatMessageFieldIDPropertyID); ok {
+		decodedPropertyID, decodeErr := decodeInt32Data(propertyIDData)
+		if decodeErr != nil {
+			return domain.ChatMessage{}, decodeErr
+		}
+		propertyID = int(decodedPropertyID)
+	}
+
+	return domain.ChatMessage{
+		ID:         id,
+		FromUserID: int(fromID),
+		ToUserID:   int(toID),
+		PropertyID: propertyID,
+		Content:    string(contentData),
+		CreatedAt:  string(createdAtData),
+	}, nil
 }
 
 func encodeReservation(item domain.Reservation) ([]byte, error) {
