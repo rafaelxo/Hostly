@@ -63,6 +63,20 @@ func (h *ReservationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, created)
 }
 
+func (h *ReservationHandler) ListByProperty(w http.ResponseWriter, r *http.Request) {
+	propertyID, err := strconv.Atoi(r.PathValue("imovelId"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+	items, err := h.svc.GetByPropertyID(propertyID)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, items)
+}
+
 func (h *ReservationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
