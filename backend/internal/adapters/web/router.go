@@ -52,6 +52,7 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /reservas/hospede/{idHospede}", reservs.ListByGuest)
 	mux.HandleFunc("GET /reservas/anfitriao/{idAnfitriao}", reservs.ListByHost)
 	mux.HandleFunc("POST /reservas", reservs.Create)
+	mux.HandleFunc("GET /reservas/imovel/{imovelId}", reservs.ListByProperty)
 	mux.HandleFunc("GET /reservas/{id}", reservs.GetByID)
 	mux.HandleFunc("PUT /reservas/{id}", reservs.Update)
 	mux.HandleFunc("PUT /reservas/{id}/confirmar", reservs.Confirm)
