@@ -17,6 +17,47 @@ var commonAmenities = []domain.AmenityCatalogItem{
 	{Name: "Vista para o mar", Description: "Visual privilegiado", Icon: "mountain", Active: true},
 }
 
+func (s *service) Create(item domain.AmenityCatalogItem) (domain.AmenityCatalogItem, error) {
+	item.Normalize()
+	if !item.Active {
+		item.Active = true
+	}
+	if err := item.Validate(); err != nil {
+		return domain.AmenityCatalogItem{}, err
+	}
+	return s.repo.Create(item)
+}
+
+func (s *service) GetByID(id int) (domain.AmenityCatalogItem, error) {
+	if id <= 0 {
+		return domain.AmenityCatalogItem{}, domain.ErrInvalidEntity
+	}
+	return s.repo.GetByID(id)
+}
+
+func (s *service) GetAll() ([]domain.AmenityCatalogItem, error) {
+	return s.repo.GetAll()
+}
+
+func (s *service) Update(id int, item domain.AmenityCatalogItem) (domain.AmenityCatalogItem, error) {
+	if id <= 0 {
+		return domain.AmenityCatalogItem{}, domain.ErrInvalidEntity
+	}
+	item.ID = id
+	item.Normalize()
+	if err := item.Validate(); err != nil {
+		return domain.AmenityCatalogItem{}, err
+	}
+	return s.repo.Update(id, item)
+}
+
+func (s *service) Delete(id int) error {
+	if id <= 0 {
+		return domain.ErrInvalidEntity
+	}
+	return s.repo.Delete(id)
+}
+
 func (s *service) GetAllActive() ([]domain.AmenityCatalogItem, error) {
 	items, err := s.repo.GetAll()
 	if err != nil {

@@ -7,13 +7,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 )
 
 const (
-	fileVersion    = uint8(3)
-	fileHeaderSize = 9
-	recordMetaSize = 9
+	fileVersion     = uint8(3)
+	fileHeaderSize  = 9
+	recordMetaSize  = 9
+	indexVersion    = uint8(1)
+	indexHeaderSize = 5
+	indexEntrySize  = 12
 )
 
 type fileHeader struct {
@@ -32,12 +36,13 @@ type payloadCodec[T any] struct {
 }
 
 type binaryEntityStore[T any] struct {
-	path  string
-	getID func(T) int
-	setID func(*T, int)
-	codec payloadCodec[T]
-	index *extensibleHashIndex
-	mu    sync.Mutex
+	path      string
+	indexPath string
+	getID     func(T) int
+	setID     func(*T, int)
+	codec     payloadCodec[T]
+	index     *extensibleHashIndex
+	mu        sync.Mutex
 }
 
 func newBinaryEntityStore[T any](
@@ -47,11 +52,12 @@ func newBinaryEntityStore[T any](
 	codec payloadCodec[T],
 ) (*binaryEntityStore[T], error) {
 	store := &binaryEntityStore[T]{
-		path:  path,
-		getID: getID,
-		setID: setID,
-		codec: codec,
-		index: newExtensibleHashIndex(4),
+		path:      path,
+		indexPath: path + ".idx",
+		getID:     getID,
+		setID:     setID,
+		codec:     codec,
+		index:     newExtensibleHashIndex(4),
 	}
 	if err := store.ensureFile(); err != nil {
 		return nil, err
@@ -78,13 +84,19 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	if info.Size() >= fileHeaderSize {
 		vbuf := make([]byte, 1)
 		if _, err := io.ReadFull(file, vbuf); err == nil && vbuf[0] == fileVersion {
-			return s.rebuildIndex(file)
+			if err := s.rebuildIndex(file); err != nil {
+				return err
+			}
+			return s.persistIndexFile()
 		}
 		log.Printf("aviso: %s em formato antigo, migrando para versao %d", s.path, fileVersion)
 		if err := s.migrateFile(file); err != nil {
 			return err
 		}
-		return s.rebuildIndex(file)
+		if err := s.rebuildIndex(file); err != nil {
+			return err
+		}
+		return s.persistIndexFile()
 	} else if info.Size() > 0 {
 		log.Printf("aviso: %s com cabecalho incompleto, resetando", s.path)
 		if err := file.Truncate(0); err != nil {
@@ -97,7 +109,7 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	}
 
 	s.index.Reset()
-	return nil
+	return s.persistIndexFile()
 }
 
 func (s *binaryEntityStore[T]) migrateFile(file *os.File) error {
@@ -190,6 +202,10 @@ func (s *binaryEntityStore[T]) createWithID(item T) (T, error) {
 		var zero T
 		return zero, err
 	}
+	if err := s.persistIndexFile(); err != nil {
+		var zero T
+		return zero, err
+	}
 
 	return item, nil
 }
@@ -232,6 +248,10 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 		var zero T
 		return zero, err
 	}
+	if err := s.persistIndexFile(); err != nil {
+		var zero T
+		return zero, err
+	}
 
 	return item, nil
 }
@@ -264,6 +284,10 @@ func (s *binaryEntityStore[T]) GetByID(id int) (T, error) {
 	}
 
 	if err := s.rebuildIndex(file); err != nil {
+		var zero T
+		return zero, err
+	}
+	if err := s.persistIndexFile(); err != nil {
 		var zero T
 		return zero, err
 	}
@@ -329,6 +353,10 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 			var zero T
 			return zero, err
 		}
+		if err := s.persistIndexFile(); err != nil {
+			var zero T
+			return zero, err
+		}
 		offset, ok = s.index.Get(id)
 		if !ok {
 			var zero T
@@ -356,6 +384,10 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 	s.index.Insert(id, newOffset)
 
 	if err := writeHeader(file, header); err != nil {
+		var zero T
+		return zero, err
+	}
+	if err := s.persistIndexFile(); err != nil {
 		var zero T
 		return zero, err
 	}
@@ -388,6 +420,9 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 		if err := s.rebuildIndex(file); err != nil {
 			return err
 		}
+		if err := s.persistIndexFile(); err != nil {
+			return err
+		}
 		offset, ok = s.index.Get(id)
 		if !ok {
 			return domain.ErrNotFound
@@ -403,7 +438,11 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 		header.Count--
 	}
 
-	return writeHeader(file, header)
+	if err := writeHeader(file, header); err != nil {
+		return err
+	}
+
+	return s.persistIndexFile()
 }
 
 func readHeader(file *os.File) (fileHeader, error) {
@@ -468,6 +507,58 @@ func (s *binaryEntityStore[T]) HashStats() HashIndexStats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.index.Stats()
+}
+
+func (s *binaryEntityStore[T]) persistIndexFile() error {
+	entries := s.index.Snapshot()
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Key < entries[j].Key
+	})
+
+	tempPath := s.indexPath + ".tmp"
+	file, err := os.OpenFile(tempPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o644)
+	if err != nil {
+		return err
+	}
+
+	closeAndCleanup := func(retErr error) error {
+		_ = file.Close()
+		if retErr != nil {
+			_ = os.Remove(tempPath)
+		}
+		return retErr
+	}
+
+	buf := make([]byte, indexHeaderSize)
+	buf[0] = indexVersion
+	binary.LittleEndian.PutUint32(buf[1:5], uint32(len(entries)))
+	if _, err := file.Write(buf); err != nil {
+		return closeAndCleanup(err)
+	}
+
+	entryBuf := make([]byte, indexEntrySize)
+	for _, entry := range entries {
+		binary.LittleEndian.PutUint32(entryBuf[0:4], uint32(entry.Key))
+		binary.LittleEndian.PutUint64(entryBuf[4:12], uint64(entry.Offset))
+		if _, err := file.Write(entryBuf); err != nil {
+			return closeAndCleanup(err)
+		}
+	}
+
+	if err := file.Sync(); err != nil {
+		return closeAndCleanup(err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return err
+	}
+
+	if err := os.Rename(tempPath, s.indexPath); err != nil {
+		_ = os.Remove(tempPath)
+		return err
+	}
+
+	return nil
 }
 
 func (s *binaryEntityStore[T]) rebuildIndex(file *os.File) error {

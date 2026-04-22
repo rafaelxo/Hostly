@@ -3,7 +3,6 @@ import logoImg from "./assets/logo.png";
 import {
   IconBuilding,
   IconCalendar,
-  IconChat,
   IconChevronLeft,
   IconChevronRight,
   IconHome,
@@ -14,7 +13,6 @@ import {
 import { COMMON_AMENITIES } from "./constants/amenities";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
-import { ChatPage } from "./pages/ChatPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ImoveisPage } from "./pages/ImoveisPage";
 import { ImovelDetailPage } from "./pages/ImovelDetailPage";
@@ -30,7 +28,6 @@ import { geocodeAddressInput } from "./services/geocoding";
 
 type PageId =
   | "dashboard"
-  | "chat"
   | "minhasReservas"
   | "meusImoveis"
   | "reservasRecebidas"
@@ -78,7 +75,6 @@ function getNav(user: Usuario): NavItem[] {
         label: "Reservas dos Imóveis",
         icon: <IconCalendar />,
       },
-      { id: "chat", label: "Chat", icon: <IconChat /> },
       { id: "receita", label: "Receita", icon: <IconMoney /> },
     ];
   }
@@ -86,7 +82,6 @@ function getNav(user: Usuario): NavItem[] {
   return [
     { id: "dashboard", label: "Mapa de Imóveis", icon: <IconBuilding /> },
     { id: "minhasReservas", label: "Minhas Reservas", icon: <IconCalendar /> },
-    { id: "chat", label: "Chat", icon: <IconChat /> },
   ];
 }
 
@@ -98,7 +93,6 @@ function getDefaultPage(user: Usuario): PageId {
 
 const PAGE_TITLES: Record<PageId, string> = {
   dashboard: "Dashboard",
-  chat: "Chat",
   minhasReservas: "Minhas Reservas",
   meusImoveis: "Meus Imóveis",
   reservasRecebidas: "Reservas dos Imóveis",
@@ -110,7 +104,6 @@ const PAGE_TITLES: Record<PageId, string> = {
 
 const PAGE_SUBTITLES: Record<PageId, string> = {
   dashboard: "Visão consolidada da operação em tempo real",
-  chat: "Converse com hóspedes e anfitriões para tirar dúvidas",
   minhasReservas: "Acompanhe, edite e confirme suas reservas",
   meusImoveis: "Gerencie seu portfólio com filtros e ordenação",
   reservasRecebidas: "Reservas recebidas nos seus imóveis",
@@ -472,10 +465,6 @@ export default function App() {
   const [preselectedReservaImovelId, setPreselectedReservaImovelId] = useState<
     number | null
   >(null);
-  const [chatTargetUserId, setChatTargetUserId] = useState<number | null>(null);
-  const [chatTargetPropertyId, setChatTargetPropertyId] = useState<
-    number | null
-  >(null);
 
   const navItems = useMemo(() => (user ? getNav(user) : []), [user]);
 
@@ -520,10 +509,6 @@ export default function App() {
   const handleNavigate = (nextPage: PageId) => {
     setViewingImovelId(null);
     setPreselectedReservaImovelId(null);
-    if (nextPage !== "chat") {
-      setChatTargetUserId(null);
-      setChatTargetPropertyId(null);
-    }
     setPage(nextPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -532,13 +517,6 @@ export default function App() {
     setViewingImovelId(null);
     setPreselectedReservaImovelId(imovelId);
     setPage("minhasReservas");
-  };
-
-  const handleStartChatFromProperty = (hostId: number, propertyId: number) => {
-    setViewingImovelId(null);
-    setChatTargetUserId(hostId);
-    setChatTargetPropertyId(propertyId);
-    setPage("chat");
   };
 
   const handleCreateProperty = async (e: React.FormEvent) => {
@@ -639,12 +617,6 @@ export default function App() {
           imovelId={viewingImovelId}
           onBack={() => setViewingImovelId(null)}
           canManage={user.tipo === "ANFITRIAO" || user.tipo === "ADMIN"}
-          onStartChat={
-            user.tipo === "HOSPEDE"
-              ? (hostId, propertyId) =>
-                  handleStartChatFromProperty(hostId, propertyId)
-              : undefined
-          }
         />
       );
     }
@@ -669,14 +641,6 @@ export default function App() {
             preselectedImovelId={preselectedReservaImovelId ?? undefined}
             canManage={user.tipo !== "ADMIN"}
             title="Minhas Reservas"
-          />
-        );
-      case "chat":
-        return (
-          <ChatPage
-            currentUser={user}
-            preselectedUserId={chatTargetUserId ?? undefined}
-            preselectedPropertyId={chatTargetPropertyId ?? undefined}
           />
         );
       case "meusImoveis":

@@ -2,6 +2,11 @@ package repository
 
 import "math/bits"
 
+type indexEntry struct {
+	Key    int
+	Offset int64
+}
+
 type hashBucket struct {
 	localDepth int
 	entries    map[int]int64
@@ -47,6 +52,23 @@ func (h *extensibleHashIndex) Reset() {
 	h.directory = n.directory
 	h.nextBucketID = n.nextBucketID
 	h.buckets = n.buckets
+}
+
+func (h *extensibleHashIndex) Snapshot() []indexEntry {
+	entries := make([]indexEntry, 0)
+	for _, bucket := range h.buckets {
+		for key, offset := range bucket.entries {
+			entries = append(entries, indexEntry{Key: key, Offset: offset})
+		}
+	}
+	return entries
+}
+
+func (h *extensibleHashIndex) Load(entries []indexEntry) {
+	h.Reset()
+	for _, entry := range entries {
+		h.Insert(entry.Key, entry.Offset)
+	}
 }
 
 func (h *extensibleHashIndex) Get(key int) (int64, bool) {

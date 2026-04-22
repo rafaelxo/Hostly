@@ -5,7 +5,6 @@ import (
 	aeduc "backend/internal/usecase/aed"
 	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
-	chatuc "backend/internal/usecase/chat"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -18,7 +17,6 @@ type Dependencies struct {
 	ReservationService reservationuc.Service
 	AuthService        authuc.Service
 	AmenityService     amenityuc.Service
-	ChatService        chatuc.Service
 	AEDService         aeduc.Service
 }
 
@@ -29,7 +27,6 @@ func NewRouter(deps Dependencies) http.Handler {
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)
 	auth := handler.NewAuthHandler(deps.AuthService)
 	amenities := handler.NewAmenityHandler(deps.AmenityService)
-	chat := handler.NewChatHandler(deps.ChatService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -66,9 +63,10 @@ func NewRouter(deps Dependencies) http.Handler {
 
 	mux.HandleFunc("GET /dashboard/stats", dash.Stats)
 	mux.HandleFunc("GET /comodidades", amenities.List)
-	mux.HandleFunc("GET /chat/contatos", chat.ListContacts)
-	mux.HandleFunc("GET /chat", chat.List)
-	mux.HandleFunc("POST /chat", chat.Create)
+	mux.HandleFunc("POST /comodidades", amenities.Create)
+	mux.HandleFunc("GET /comodidades/{id}", amenities.GetByID)
+	mux.HandleFunc("PUT /comodidades/{id}", amenities.Update)
+	mux.HandleFunc("DELETE /comodidades/{id}", amenities.Delete)
 
 	return withCORS(mux)
 }

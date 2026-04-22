@@ -206,19 +206,6 @@ export const IconEye = () => (
   </svg>
 );
 
-export const IconChat = () => (
-  <svg
-    width="20"
-    height="20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    viewBox="0 0 24 24"
-  >
-    <path d="M4 5h16a2 2 0 012 2v8a2 2 0 01-2 2H9l-5 4v-4H4a2 2 0 01-2-2V7a2 2 0 012-2z" />
-  </svg>
-);
-
 export const IconUpload = () => (
   <svg
     width="18"

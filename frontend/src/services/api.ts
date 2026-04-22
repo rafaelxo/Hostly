@@ -55,15 +55,6 @@ export interface Usuario {
   ativo: boolean;
 }
 
-export interface ChatMensagem {
-  idMensagem: number;
-  idRemetente: number;
-  idDestinatario: number;
-  idImovel?: number;
-  conteudo: string;
-  dataCriacao: string;
-}
-
 export interface Session {
   token: string;
   usuario: Usuario;
@@ -391,38 +382,6 @@ export const dashboardService = {
 export const comodidadeService = {
   async getAll(): Promise<ComodidadeCatalogo[]> {
     return request<ComodidadeCatalogo[]>("/comodidades");
-  },
-};
-
-export const chatService = {
-  async getContacts(userId: number): Promise<Usuario[]> {
-    return request<Usuario[]>(`/chat/contatos?userId=${userId}`);
-  },
-  async getByUsers(
-    userId: number,
-    withUserId: number,
-    propertyId?: number,
-  ): Promise<ChatMensagem[]> {
-    const query = new URLSearchParams({
-      userId: String(userId),
-      withUserId: String(withUserId),
-    });
-    if (typeof propertyId === "number" && propertyId > 0) {
-      query.set("propertyId", String(propertyId));
-    }
-
-    return request<ChatMensagem[]>(`/chat?${query.toString()}`);
-  },
-  async send(data: {
-    idRemetente: number;
-    idDestinatario: number;
-    idImovel?: number;
-    conteudo: string;
-  }): Promise<ChatMensagem> {
-    return request<ChatMensagem>("/chat", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
   },
 };
 
