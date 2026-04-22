@@ -1,9 +1,20 @@
 import { useState } from "react";
 import logoImg from "../assets/logo.png";
 import { ErrorMsg, Field, inputCls } from "../components/common";
+import { IconEye, IconEyeOff } from "../components/icons";
 import { COMMON_AMENITIES } from "../constants/amenities";
 import { useComodidades } from "../hooks/useData";
 import { authService } from "../services/api";
+
+function formatBRPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
 
 type AuthPageProps = {
   onAuthenticated: () => Promise<void> | void;
@@ -19,6 +30,8 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginSenha, setLoginSenha] = useState("");
+  const [showLoginPw, setShowLoginPw] = useState(false);
+  const [showRegPw, setShowRegPw] = useState(false);
 
   const [regNome, setRegNome] = useState("");
   const [regEmail, setRegEmail] = useState("");
@@ -222,13 +235,24 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                     />
                   </Field>
                   <Field label="Senha" required>
-                    <input
-                      className={inputCls}
-                      type="password"
-                      value={loginSenha}
-                      onChange={(e) => setLoginSenha(e.target.value)}
-                      required
-                    />
+                    <div className="relative">
+                      <input
+                        className={`${inputCls} pr-10`}
+                        type={showLoginPw ? "text" : "password"}
+                        value={loginSenha}
+                        onChange={(e) => setLoginSenha(e.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPw((v) => !v)}
+                        className="absolute inset-y-0 right-2 flex items-center text-stone-500 hover:text-stone-800"
+                        aria-label={showLoginPw ? "Esconder senha" : "Mostrar senha"}
+                        tabIndex={-1}
+                      >
+                        {showLoginPw ? <IconEyeOff /> : <IconEye />}
+                      </button>
+                    </div>
                   </Field>
                 </div>
                 <button
@@ -269,20 +293,34 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                       <input
                         className={inputCls}
                         value={regTelefone}
-                        onChange={(e) => setRegTelefone(e.target.value)}
+                        onChange={(e) => setRegTelefone(formatBRPhone(e.target.value))}
+                        inputMode="numeric"
+                        maxLength={16}
+                        placeholder="(11) 91234-5678"
                         required
                       />
                     </Field>
                     <div className="md:col-span-2">
                       <Field label="Senha" required>
-                        <input
-                          className={inputCls}
-                          type="password"
-                          minLength={6}
-                          value={regSenha}
-                          onChange={(e) => setRegSenha(e.target.value)}
-                          required
-                        />
+                        <div className="relative">
+                          <input
+                            className={`${inputCls} pr-10`}
+                            type={showRegPw ? "text" : "password"}
+                            minLength={6}
+                            value={regSenha}
+                            onChange={(e) => setRegSenha(e.target.value)}
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegPw((v) => !v)}
+                            className="absolute inset-y-0 right-2 flex items-center text-stone-500 hover:text-stone-800"
+                            aria-label={showRegPw ? "Esconder senha" : "Mostrar senha"}
+                            tabIndex={-1}
+                          >
+                            {showRegPw ? <IconEyeOff /> : <IconEye />}
+                          </button>
+                        </div>
                         <div className="mt-2">
                           <PasswordStrength pw={regSenha} />
                         </div>
