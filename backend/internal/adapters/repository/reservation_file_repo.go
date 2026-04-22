@@ -5,7 +5,8 @@ import (
 )
 
 type ReservationFileRepository struct {
-	store *binaryEntityStore[domain.Reservation]
+	store     *binaryEntityStore[domain.Reservation]
+	byProperty *extensibleRelationHash
 }
 
 func NewReservationFileRepository(path string) (*ReservationFileRepository, error) {
@@ -18,7 +19,30 @@ func NewReservationFileRepository(path string) (*ReservationFileRepository, erro
 	if err != nil {
 		return nil, err
 	}
-	return &ReservationFileRepository{store: store}, nil
+
+	byProperty, err := newExtensibleRelationHash(
+		path+".relhash.dir",
+		path+".relhash.buckets",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	repo := &ReservationFileRepository{store: store, byProperty: byProperty}
+
+	if byProperty.IsEmpty() {
+		all, err := store.GetAll()
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range all {
+			if err := byProperty.Add(r.PropertyID, r.ID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return repo, nil
 }
 
 func (r *ReservationFileRepository) HashStats() HashIndexStats {
@@ -26,7 +50,14 @@ func (r *ReservationFileRepository) HashStats() HashIndexStats {
 }
 
 func (r *ReservationFileRepository) Create(item domain.Reservation) (domain.Reservation, error) {
-	return r.store.Create(item)
+	created, err := r.store.Create(item)
+	if err != nil {
+		return created, err
+	}
+	if err := r.byProperty.Add(created.PropertyID, created.ID); err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (r *ReservationFileRepository) GetByID(id int) (domain.Reservation, error) {
@@ -38,23 +69,50 @@ func (r *ReservationFileRepository) GetAll() ([]domain.Reservation, error) {
 }
 
 func (r *ReservationFileRepository) GetByPropertyID(propertyID int) ([]domain.Reservation, error) {
-	all, err := r.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	items := make([]domain.Reservation, 0)
-	for _, item := range all {
-		if item.PropertyID == propertyID {
-			items = append(items, item)
+	ids := r.byProperty.Get(propertyID)
+	items := make([]domain.Reservation, 0, len(ids))
+	for _, id := range ids {
+		reservation, err := r.store.GetByID(id)
+		if err != nil {
+			if err == domain.ErrNotFound {
+				continue
+			}
+			return nil, err
 		}
+		items = append(items, reservation)
 	}
 	return items, nil
 }
 
 func (r *ReservationFileRepository) Update(id int, item domain.Reservation) (domain.Reservation, error) {
-	return r.store.Update(id, item)
+	old, err := r.store.GetByID(id)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+
+	updated, err := r.store.Update(id, item)
+	if err != nil {
+		return updated, err
+	}
+
+	if old.PropertyID != updated.PropertyID {
+		if err := r.byProperty.Remove(old.PropertyID, id); err != nil {
+			return updated, err
+		}
+		if err := r.byProperty.Add(updated.PropertyID, id); err != nil {
+			return updated, err
+		}
+	}
+	return updated, nil
 }
 
 func (r *ReservationFileRepository) Delete(id int) error {
-	return r.store.Delete(id)
+	existing, err := r.store.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if err := r.store.Delete(id); err != nil {
+		return err
+	}
+	return r.byProperty.Remove(existing.PropertyID, id)
 }
