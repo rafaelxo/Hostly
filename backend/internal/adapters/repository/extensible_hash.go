@@ -1,7 +1,5 @@
 package repository
 
-import "math/bits"
-
 type indexEntry struct {
 	Key    int
 	Offset int64
@@ -30,20 +28,16 @@ func newExtensibleHashIndex(bucketSize int) *extensibleHashIndex {
 	if bucketSize < 2 {
 		bucketSize = 4
 	}
-
-	h := &extensibleHashIndex{
+	return &extensibleHashIndex{
 		bucketSize:   bucketSize,
 		globalDepth:  1,
-		directory:    make([]int, 2),
+		directory:    []int{0, 1},
 		nextBucketID: 2,
 		buckets: map[int]*hashBucket{
 			0: {localDepth: 1, entries: make(map[int]int64)},
 			1: {localDepth: 1, entries: make(map[int]int64)},
 		},
 	}
-	h.directory[0] = 0
-	h.directory[1] = 1
-	return h
 }
 
 func (h *extensibleHashIndex) Reset() {
@@ -55,7 +49,11 @@ func (h *extensibleHashIndex) Reset() {
 }
 
 func (h *extensibleHashIndex) Snapshot() []indexEntry {
-	entries := make([]indexEntry, 0)
+	total := 0
+	for _, b := range h.buckets {
+		total += len(b.entries)
+	}
+	entries := make([]indexEntry, 0, total)
 	for _, bucket := range h.buckets {
 		for key, offset := range bucket.entries {
 			entries = append(entries, indexEntry{Key: key, Offset: offset})
@@ -83,7 +81,10 @@ func (h *extensibleHashIndex) Delete(key int) {
 }
 
 func (h *extensibleHashIndex) Insert(key int, offset int64) {
-	for {
+	// Defensive cap: keys are at most 64-bit, so the hash can never require
+	// more than 64 splits to separate two distinct keys. If we exceed that,
+	// something is corrupted — panic rather than spin.
+	for i := 0; i < 64; i++ {
 		bucket := h.bucketForKey(key)
 		if _, exists := bucket.entries[key]; exists {
 			bucket.entries[key] = offset
@@ -95,6 +96,7 @@ func (h *extensibleHashIndex) Insert(key int, offset int64) {
 		}
 		h.splitBucketForKey(key)
 	}
+	panic("extensibleHashIndex: failed to place key after 64 splits")
 }
 
 func (h *extensibleHashIndex) Stats() HashIndexStats {
@@ -109,10 +111,15 @@ func (h *extensibleHashIndex) Stats() HashIndexStats {
 	}
 }
 
+func (h *extensibleHashIndex) RequiredBits() int {
+	if h.globalDepth < 1 {
+		return 1
+	}
+	return h.globalDepth
+}
+
 func (h *extensibleHashIndex) bucketForKey(key int) *hashBucket {
-	dirIndex := h.directoryIndex(key)
-	bucketID := h.directory[dirIndex]
-	return h.buckets[bucketID]
+	return h.buckets[h.directory[h.directoryIndex(key)]]
 }
 
 func (h *extensibleHashIndex) directoryIndex(key int) int {
@@ -121,8 +128,7 @@ func (h *extensibleHashIndex) directoryIndex(key int) int {
 }
 
 func (h *extensibleHashIndex) splitBucketForKey(key int) {
-	dirIndex := h.directoryIndex(key)
-	oldBucketID := h.directory[dirIndex]
+	oldBucketID := h.directory[h.directoryIndex(key)]
 	oldBucket := h.buckets[oldBucketID]
 
 	if oldBucket.localDepth == h.globalDepth {
@@ -130,28 +136,25 @@ func (h *extensibleHashIndex) splitBucketForKey(key int) {
 	}
 
 	oldBucket.localDepth++
+	newLocalDepth := oldBucket.localDepth
+
 	newBucketID := h.nextBucketID
 	h.nextBucketID++
 	newBucket := &hashBucket{
-		localDepth: oldBucket.localDepth,
+		localDepth: newLocalDepth,
 		entries:    make(map[int]int64),
 	}
 	h.buckets[newBucketID] = newBucket
 
-	discriminatorBit := 1 << (oldBucket.localDepth - 1)
+	discriminatorBit := 1 << (newLocalDepth - 1)
 	for i, bID := range h.directory {
-		if bID != oldBucketID {
-			continue
-		}
-		if (i & discriminatorBit) != 0 {
+		if bID == oldBucketID && (i&discriminatorBit) != 0 {
 			h.directory[i] = newBucketID
 		}
 	}
 
 	for entryKey, entryOffset := range oldBucket.entries {
-		idx := h.directoryIndex(entryKey)
-		targetBucketID := h.directory[idx]
-		if targetBucketID == newBucketID {
+		if h.directory[h.directoryIndex(entryKey)] == newBucketID {
 			newBucket.entries[entryKey] = entryOffset
 			delete(oldBucket.entries, entryKey)
 		}
@@ -159,17 +162,11 @@ func (h *extensibleHashIndex) splitBucketForKey(key int) {
 }
 
 func (h *extensibleHashIndex) growDirectory() {
-	old := h.directory
+	oldSize := 1 << h.globalDepth
 	h.globalDepth++
-	h.directory = make([]int, 1<<h.globalDepth)
-	for i := range h.directory {
-		h.directory[i] = old[i%(1<<(h.globalDepth-1))]
+	newDir := make([]int, 1<<h.globalDepth)
+	for i := range newDir {
+		newDir[i] = h.directory[i&(oldSize-1)]
 	}
-}
-
-func (h *extensibleHashIndex) RequiredBits() int {
-	if h.globalDepth <= 1 {
-		return 1
-	}
-	return bits.Len(uint(h.globalDepth))
+	h.directory = newDir
 }
