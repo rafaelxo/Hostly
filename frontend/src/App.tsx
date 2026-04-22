@@ -8,11 +8,13 @@ import {
   IconHome,
   IconLogout,
   IconMoney,
+  IconSparkles,
   IconUsers,
 } from "./components/icons";
 import { COMMON_AMENITIES } from "./constants/amenities";
 import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
+import { ComodidadesPage } from "./pages/ComodidadesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ImoveisPage } from "./pages/ImoveisPage";
 import { ImovelDetailPage } from "./pages/ImovelDetailPage";
@@ -22,9 +24,11 @@ import {
   authService,
   hasSessionToken,
   imoveisService,
+  type ComodidadeCatalogo,
   type Usuario,
 } from "./services/api";
 import { geocodeAddressInput } from "./services/geocoding";
+import { useComodidades } from "./hooks/useData";
 
 type PageId =
   | "dashboard"
@@ -33,6 +37,7 @@ type PageId =
   | "reservasRecebidas"
   | "receita"
   | "reservasAtivas"
+  | "comodidades"
   | "usuariosAtivos"
   | "imoveisAtivos";
 
@@ -51,6 +56,11 @@ function getNav(user: Usuario): NavItem[] {
         id: "imoveisAtivos",
         label: "Imóveis Ativos",
         icon: <IconBuilding />,
+      },
+      {
+        id: "comodidades",
+        label: "Comodidades",
+        icon: <IconSparkles />,
       },
       {
         id: "reservasAtivas",
@@ -98,6 +108,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   reservasRecebidas: "Reservas dos Imóveis",
   receita: "Receita por Imóvel",
   reservasAtivas: "Reservas Ativas",
+  comodidades: "Comodidades",
   usuariosAtivos: "Usuários Ativos",
   imoveisAtivos: "Imóveis Ativos",
 };
@@ -109,6 +120,7 @@ const PAGE_SUBTITLES: Record<PageId, string> = {
   reservasRecebidas: "Reservas recebidas nos seus imóveis",
   receita: "Evolução de receita por imóvel e período",
   reservasAtivas: "Reservas atualmente em vigência",
+  comodidades: "Catálogo de comodidades do sistema",
   usuariosAtivos: "Usuários com conta ativa na plataforma",
   imoveisAtivos: "Imóveis publicados e disponíveis",
 };
@@ -152,6 +164,7 @@ const AddPropertyModal = ({
   onSubmit,
   loading,
   error,
+  amenities,
 }: {
   open: boolean;
   onClose: () => void;
@@ -165,6 +178,7 @@ const AddPropertyModal = ({
   onSubmit: (e: React.FormEvent) => void;
   loading: boolean;
   error: string | null;
+  amenities: string[];
 }) => {
   if (!open) return null;
 
@@ -263,7 +277,7 @@ const AddPropertyModal = ({
             </div>
             <div className="md:col-span-2">
               <div className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
-                {COMMON_AMENITIES.map((amenity) => {
+                {amenities.map((amenity) => {
                   const selected = form.comodidades.includes(amenity);
                   return (
                     <button
@@ -465,8 +479,15 @@ export default function App() {
   const [preselectedReservaImovelId, setPreselectedReservaImovelId] = useState<
     number | null
   >(null);
+  const { data: comodidadesCatalog } = useComodidades();
 
   const navItems = useMemo(() => (user ? getNav(user) : []), [user]);
+  const amenityOptions = useMemo(() => {
+    const dynamic = (comodidadesCatalog ?? [])
+      .filter((item: ComodidadeCatalogo) => item.ativo)
+      .map((item) => item.nome);
+    return dynamic.length > 0 ? dynamic : [...COMMON_AMENITIES];
+  }, [comodidadesCatalog]);
 
   const bootstrapSession = async () => {
     if (!hasSessionToken()) {
@@ -662,6 +683,8 @@ export default function App() {
         );
       case "receita":
         return <ReceitaPage hostId={user.idUsuario} />;
+      case "comodidades":
+        return <ComodidadesPage />;
       case "reservasAtivas":
         return (
           <ReservasPage activeOnly canManage={false} title="Reservas Ativas" />
@@ -755,6 +778,7 @@ export default function App() {
         onSubmit={handleCreateProperty}
         loading={addPropertyLoading}
         error={addPropertyError}
+        amenities={amenityOptions}
       />
     </div>
   );

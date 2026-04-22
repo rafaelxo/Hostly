@@ -220,3 +220,17 @@ export const IconUpload = () => (
     <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
   </svg>
 );
+
+export const IconSparkles = () => (
+  <svg
+    width="20"
+    height="20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+  >
+    <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" />
+    <path d="M19 14l.9 3 3 .9-3 .9-.9 3-.9-3-3-.9 3-.9.9-3z" />
+  </svg>
+);

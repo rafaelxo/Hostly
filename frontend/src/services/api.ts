@@ -35,6 +35,15 @@ export interface ComodidadeCatalogo {
   ativo: boolean;
 }
 
+export type CreateComodidadeInput = {
+  nome: string;
+  descricao?: string;
+  icone?: string;
+  ativo: boolean;
+};
+
+export type UpdateComodidadeInput = Partial<CreateComodidadeInput>;
+
 export interface Anfitriao {
   idUsuario: number;
   nome: string;
@@ -382,6 +391,27 @@ export const dashboardService = {
 export const comodidadeService = {
   async getAll(): Promise<ComodidadeCatalogo[]> {
     return request<ComodidadeCatalogo[]>("/comodidades");
+  },
+  async getById(id: number): Promise<ComodidadeCatalogo> {
+    return request<ComodidadeCatalogo>(`/comodidades/${id}`);
+  },
+  async create(data: CreateComodidadeInput): Promise<ComodidadeCatalogo> {
+    return request<ComodidadeCatalogo>("/comodidades", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  async update(
+    id: number,
+    data: UpdateComodidadeInput,
+  ): Promise<ComodidadeCatalogo> {
+    return request<ComodidadeCatalogo>(`/comodidades/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  async delete(id: number): Promise<void> {
+    return request<void>(`/comodidades/${id}`, { method: "DELETE" });
   },
 };
 

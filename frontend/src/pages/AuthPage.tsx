@@ -2,6 +2,7 @@ import { useState } from "react";
 import logoImg from "../assets/logo.png";
 import { ErrorMsg, Field, inputCls } from "../components/common";
 import { COMMON_AMENITIES } from "../constants/amenities";
+import { useComodidades } from "../hooks/useData";
 import { authService } from "../services/api";
 
 type AuthPageProps = {
@@ -35,6 +36,10 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [imovelFoto, setImovelFoto] = useState<File | null>(null);
   const [imovelComodidades, setImovelComodidades] = useState<string[]>([]);
   const [imovelDiaria, setImovelDiaria] = useState("");
+  const { data: comodidadesCatalog } = useComodidades();
+  const amenityOptions =
+    comodidadesCatalog?.filter((item) => item.ativo).map((item) => item.nome) ??
+    COMMON_AMENITIES;
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -413,7 +418,7 @@ export function AuthPage({ onAuthenticated }: AuthPageProps) {
                       <div className="md:col-span-2">
                         <Field label="Comodidades">
                           <div className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-white p-3">
-                            {COMMON_AMENITIES.map((amenity) => {
+                            {amenityOptions.map((amenity) => {
                               const selected =
                                 imovelComodidades.includes(amenity);
                               return (

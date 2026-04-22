@@ -19,6 +19,7 @@ import {
 } from "../components/icons";
 import { COMMON_AMENITIES } from "../constants/amenities";
 import { useUsuarios } from "../hooks/useData";
+import { useComodidades } from "../hooks/useData";
 import { imoveisService, type Imovel } from "../services/api";
 import { geocodeAddressInput } from "../services/geocoding";
 
@@ -90,6 +91,10 @@ export function ImoveisPage({
   const [form, setForm] = useState<FormState>(initialForm);
   const newPhotosInputRef = useRef<HTMLInputElement | null>(null);
   const editPhotosInputRef = useRef<HTMLInputElement | null>(null);
+  const { data: comodidadesCatalog } = useComodidades();
+  const amenityOptions =
+    comodidadesCatalog?.filter((item) => item.ativo).map((item) => item.nome) ??
+    COMMON_AMENITIES;
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -436,7 +441,7 @@ export function ImoveisPage({
               <div className="md:col-span-2">
                 <Field label="Comodidades">
                   <div className="flex flex-wrap gap-2">
-                    {COMMON_AMENITIES.map((amenity) => {
+                {amenityOptions.map((amenity) => {
                       const selected = form.comodidades.includes(amenity);
                       return (
                         <button

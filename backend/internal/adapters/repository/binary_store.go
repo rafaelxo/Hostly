@@ -190,6 +190,11 @@ func (s *binaryEntityStore[T]) createWithID(item T) (T, error) {
 		return zero, err
 	}
 
+	if _, exists := s.index.Get(s.getID(item)); exists {
+		var zero T
+		return zero, domain.ErrAlreadyExists
+	}
+
 	offset, err := appendRecord(file, false, s.getID(item), payload)
 	if err != nil {
 		var zero T
@@ -229,6 +234,11 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 
 	header.LastID++
 	s.setID(&item, int(header.LastID))
+
+	if _, exists := s.index.Get(int(header.LastID)); exists {
+		var zero T
+		return zero, domain.ErrAlreadyExists
+	}
 
 	payload, err := s.codec.encode(item)
 	if err != nil {
