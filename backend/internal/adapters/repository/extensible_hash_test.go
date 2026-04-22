@@ -50,10 +50,6 @@ func TestHashOverwriteOnDuplicate(t *testing.T) {
 }
 
 func TestHashSparseLowBits(t *testing.T) {
-	// Keys that share many low bits — forces the split path to walk
-	// deeper before distinguishing them. This is the worst case for
-	// extendible hashing and the most likely place for the split logic
-	// to misbehave (e.g. infinite loop, lost entries).
 	h := newExtensibleHashIndex(4)
 
 	keys := []int{0, 16, 32, 48, 64, 80, 96, 112, 128, 144}

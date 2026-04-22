@@ -50,8 +50,6 @@ func TestRelationHashAddGetRemove(t *testing.T) {
 }
 
 func TestRelationHashManyValuesPerKey(t *testing.T) {
-	// One property with 20 reservations forces the overflow path: all
-	// entries collide on the same key and no split can separate them.
 	dir := t.TempDir()
 	h, err := newExtensibleRelationHash(
 		filepath.Join(dir, "rel.dir"),
@@ -75,7 +73,6 @@ func TestRelationHashManyValuesPerKey(t *testing.T) {
 		}
 	}
 
-	// Remove half.
 	for i := 1; i <= 10; i++ {
 		if err := h.Remove(42, i); err != nil {
 			t.Fatal(err)
@@ -162,7 +159,6 @@ func TestReservationRepoGetByPropertyIDUsesHash(t *testing.T) {
 		t.Fatalf("GetByPropertyID(2) = %+v, want [%d]", listP2, r3.ID)
 	}
 
-	// Update r1 to move from property 1 to property 3.
 	if _, err := repo.Update(r1.ID, domain.Reservation{PropertyID: 3, GuestID: 10}); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +171,6 @@ func TestReservationRepoGetByPropertyIDUsesHash(t *testing.T) {
 		t.Fatalf("GetByPropertyID(3) = %+v, want [%d]", listP3, r1.ID)
 	}
 
-	// Delete r3.
 	if err := repo.Delete(r3.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +178,6 @@ func TestReservationRepoGetByPropertyIDUsesHash(t *testing.T) {
 		t.Fatalf("GetByPropertyID(2) after delete = %v, want empty", got)
 	}
 
-	// Reopen the repo from the same path — hash must persist.
 	repo2, err := NewReservationFileRepository(filepath.Join(dir, "reservas.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -195,9 +189,6 @@ func TestReservationRepoGetByPropertyIDUsesHash(t *testing.T) {
 }
 
 func TestReservationRepoRebuildsHashFromDB(t *testing.T) {
-	// Simulate a deployment where the .db file exists but the .relhash.*
-	// files are missing: the constructor must scan reservations and
-	// rebuild the hash so GetByPropertyID keeps working.
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "reservas.db")
 
@@ -213,7 +204,6 @@ func TestReservationRepoRebuildsHashFromDB(t *testing.T) {
 		}
 	}
 
-	// Delete hash files, keep .db.
 	if err := removeIfExists(dbPath + ".relhash.dir"); err != nil {
 		t.Fatal(err)
 	}

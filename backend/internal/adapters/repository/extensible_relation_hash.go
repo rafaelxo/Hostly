@@ -6,12 +6,6 @@ import (
 	"sync"
 )
 
-// extensibleRelationHash is an on-disk extendible hash specialised for
-// 1:N relationships (multi-value per key). Unlike extensibleHashIndex,
-// which is a unique-key primary index, this structure allows many
-// values per key — needed for FK relationships such as Imovel -> Reserva
-// (one property can have many reservations).
-
 const relationBucketCapacity = 4
 
 type relationEntry struct {
@@ -206,9 +200,6 @@ func (h *extensibleRelationHash) insert(key, value int32) {
 		}
 		prevLen := len(bucket.entries)
 		h.splitBucket(bucketID)
-		// Split made no progress (all entries share enough bits with the
-		// new key that they resolve to the same slot at every depth — e.g.
-		// many reservations for the same property). Accept overflow.
 		if len(h.buckets[bucketID].entries) == prevLen {
 			target := h.directory[h.slot(int(key), h.globalDepth)]
 			h.buckets[target].entries = append(
@@ -232,9 +223,6 @@ func (h *extensibleRelationHash) doubleDirectory() {
 }
 
 func (h *extensibleRelationHash) splitBucket(bucketID uint32) {
-	// Capture entries and clear the source BEFORE appending to h.buckets —
-	// an append that reallocates the backing array would otherwise leave
-	// the stale pointer writing into the orphaned array.
 	oldEntries := h.buckets[bucketID].entries
 	h.buckets[bucketID].localDepth++
 	h.buckets[bucketID].entries = nil

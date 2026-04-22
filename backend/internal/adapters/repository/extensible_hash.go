@@ -81,9 +81,6 @@ func (h *extensibleHashIndex) Delete(key int) {
 }
 
 func (h *extensibleHashIndex) Insert(key int, offset int64) {
-	// Defensive cap: keys are at most 64-bit, so the hash can never require
-	// more than 64 splits to separate two distinct keys. If we exceed that,
-	// something is corrupted — panic rather than spin.
 	for i := 0; i < 64; i++ {
 		bucket := h.bucketForKey(key)
 		if _, exists := bucket.entries[key]; exists {
