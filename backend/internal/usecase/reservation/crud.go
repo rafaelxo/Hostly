@@ -3,8 +3,10 @@ package reservation
 import (
 	"backend/internal/domain"
 	paymentuc "backend/internal/usecase/payment"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -153,6 +155,82 @@ func (s *service) GetByHostWithProperties(hostID int) (map[int][]domain.Reservat
 	return grouped, nil
 }
 
+type reservationSearcher interface {
+	Search(query string, status string) ([]domain.Reservation, error)
+}
+
+func (s *service) List(filter ListFilter) ([]domain.Reservation, error) {
+	var (
+		items []domain.Reservation
+		err   error
+	)
+
+	if filter.PropertyID != nil {
+		items, err = s.GetByPropertyID(*filter.PropertyID)
+	} else if filter.UserID != nil {
+		switch filter.Role {
+		case "hospede":
+			items, err = s.GetByGuestID(*filter.UserID)
+		case "anfitriao":
+			items, err = s.GetByHostID(*filter.UserID)
+		case "":
+			guestItems, guestErr := s.GetByGuestID(*filter.UserID)
+			if guestErr != nil {
+				return nil, guestErr
+			}
+			hostItems, hostErr := s.GetByHostID(*filter.UserID)
+			if hostErr != nil && !errors.Is(hostErr, domain.ErrInvalidEntity) {
+				return nil, hostErr
+			}
+			merged := make(map[int]domain.Reservation, len(guestItems)+len(hostItems))
+			for _, item := range guestItems {
+				merged[item.ID] = item
+			}
+			for _, item := range hostItems {
+				merged[item.ID] = item
+			}
+			items = make([]domain.Reservation, 0, len(merged))
+			for _, item := range merged {
+				items = append(items, item)
+			}
+		default:
+			return nil, fmt.Errorf("%w: campo papel obrigatorio para filtro por usuario", domain.ErrInvalidEntity)
+		}
+	} else {
+		items, err = s.repo.GetAll()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if searcher, ok := s.repo.(reservationSearcher); ok && (strings.TrimSpace(filter.Query) != "" || strings.TrimSpace(filter.Status) != "") {
+		indexed, searchErr := searcher.Search(filter.Query, filter.Status)
+		if searchErr != nil {
+			return nil, searchErr
+		}
+		items = intersectReservationsByID(items, indexed)
+	}
+
+	return filterReservations(items, filter.Status, filter.PeriodFrom, filter.PeriodTo)
+}
+
+func intersectReservationsByID(left []domain.Reservation, right []domain.Reservation) []domain.Reservation {
+	if len(left) == 0 || len(right) == 0 {
+		return []domain.Reservation{}
+	}
+	set := make(map[int]domain.Reservation, len(right))
+	for _, item := range right {
+		set[item.ID] = item
+	}
+	out := make([]domain.Reservation, 0, len(left))
+	for _, item := range left {
+		if candidate, ok := set[item.ID]; ok {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
 func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, error) {
 	if id <= 0 {
 		return domain.Reservation{}, domain.ErrInvalidEntity
@@ -273,6 +351,51 @@ func (s *service) Delete(id int) error {
 		return domain.ErrInvalidEntity
 	}
 	return s.repo.Delete(id)
+}
+
+func filterReservations(items []domain.Reservation, statusRaw, periodFromRaw, periodToRaw string) ([]domain.Reservation, error) {
+	var periodFrom *time.Time
+	if periodFromRaw != "" {
+		parsed, err := time.Parse("2006-01-02", periodFromRaw)
+		if err != nil {
+			return nil, err
+		}
+		periodFrom = &parsed
+	}
+
+	var periodTo *time.Time
+	if periodToRaw != "" {
+		parsed, err := time.Parse("2006-01-02", periodToRaw)
+		if err != nil {
+			return nil, err
+		}
+		periodTo = &parsed
+	}
+
+	filtered := make([]domain.Reservation, 0, len(items))
+	for _, item := range items {
+		if statusRaw != "" && string(item.Status) != statusRaw {
+			continue
+		}
+
+		if periodFrom != nil || periodTo != nil {
+			startDate, startErr := time.Parse("2006-01-02", item.StartDate)
+			endDate, endErr := time.Parse("2006-01-02", item.EndDate)
+			if startErr != nil || endErr != nil {
+				continue
+			}
+			if periodFrom != nil && endDate.Before(*periodFrom) {
+				continue
+			}
+			if periodTo != nil && startDate.After(*periodTo) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, item)
+	}
+
+	return filtered, nil
 }
 
 func calculateTotalValue(dailyRate float64, startDate string, endDate string) (float64, error) {

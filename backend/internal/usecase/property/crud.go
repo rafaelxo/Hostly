@@ -2,6 +2,7 @@ package property
 
 import (
 	"backend/internal/domain"
+	"strings"
 	"time"
 )
 
@@ -80,6 +81,59 @@ func (s *service) GetByOwnerID(ownerID int) ([]domain.Property, error) {
 		return nil, domain.ErrInvalidEntity
 	}
 	return s.repo.GetByOwnerID(ownerID)
+}
+
+type propertySearcher interface {
+	Search(ownerID *int, city string, minRate *float64, maxRate *float64, query string, includeInactive bool) ([]domain.Property, error)
+}
+
+func (s *service) List(filter ListFilter) ([]domain.Property, error) {
+	if filter.OwnerID != nil && *filter.OwnerID <= 0 {
+		return nil, domain.ErrInvalidEntity
+	}
+	if searcher, ok := s.repo.(propertySearcher); ok {
+		return searcher.Search(
+			filter.OwnerID,
+			filter.City,
+			filter.MinDailyRate,
+			filter.MaxDailyRate,
+			filter.Query,
+			filter.IncludeInactive,
+		)
+	}
+
+	all, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	city := strings.TrimSpace(strings.ToLower(filter.City))
+	query := strings.TrimSpace(strings.ToLower(filter.Query))
+	filtered := make([]domain.Property, 0, len(all))
+	for _, item := range all {
+		if filter.OwnerID != nil && item.UserID != *filter.OwnerID {
+			continue
+		}
+		if !filter.IncludeInactive && !item.Active {
+			continue
+		}
+		if city != "" && !strings.Contains(strings.ToLower(item.City), city) {
+			continue
+		}
+		if filter.MinDailyRate != nil && item.DailyRate < *filter.MinDailyRate {
+			continue
+		}
+		if filter.MaxDailyRate != nil && item.DailyRate > *filter.MaxDailyRate {
+			continue
+		}
+		if query != "" &&
+			!strings.Contains(strings.ToLower(item.Title), query) &&
+			!strings.Contains(strings.ToLower(item.City), query) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, nil
 }
 
 func (s *service) Update(id int, item domain.Property) (domain.Property, error) {

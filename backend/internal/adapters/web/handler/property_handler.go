@@ -71,70 +71,63 @@ func NewPropertyHandler(svc property.Service) *PropertyHandler {
 
 func (h *PropertyHandler) List(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-
-	items, err := h.svc.GetAll()
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err)
-		return
-	}
-	filtered, err := filterProperties(
-		items,
+	filter, err := parsePropertyListFilter(
 		query.Get("idUsuario"),
 		query.Get("cidade"),
 		query.Get("valorDiariaMin"),
 		query.Get("valorDiariaMax"),
+		query.Get("busca"),
+		query.Get("ativo"),
 	)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err)
 		return
 	}
+
+	filtered, err := h.svc.List(filter)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
 	respondJSON(w, http.StatusOK, filtered)
 }
 
-func filterProperties(items []domain.Property, ownerIDRaw, cityRaw, minRateRaw, maxRateRaw string) ([]domain.Property, error) {
-	var ownerID int
-	var err error
+func parsePropertyListFilter(ownerIDRaw, cityRaw, minRateRaw, maxRateRaw, queryRaw, activeRaw string) (property.ListFilter, error) {
+	filter := property.ListFilter{
+		City:  cityRaw,
+		Query: queryRaw,
+	}
 	if ownerIDRaw != "" {
-		ownerID, err = strconv.Atoi(ownerIDRaw)
+		ownerID, err := strconv.Atoi(ownerIDRaw)
 		if err != nil {
-			return nil, err
+			return property.ListFilter{}, err
 		}
+		filter.OwnerID = &ownerID
 	}
-
-	var minRate float64
 	if minRateRaw != "" {
-		minRate, err = strconv.ParseFloat(minRateRaw, 64)
+		minRate, err := strconv.ParseFloat(minRateRaw, 64)
 		if err != nil {
-			return nil, err
+			return property.ListFilter{}, err
 		}
+		filter.MinDailyRate = &minRate
 	}
-
-	var maxRate float64
 	if maxRateRaw != "" {
-		maxRate, err = strconv.ParseFloat(maxRateRaw, 64)
+		maxRate, err := strconv.ParseFloat(maxRateRaw, 64)
 		if err != nil {
-			return nil, err
+			return property.ListFilter{}, err
+		}
+		filter.MaxDailyRate = &maxRate
+	}
+	if activeRaw != "" {
+		onlyActive, err := strconv.ParseBool(activeRaw)
+		if err != nil {
+			return property.ListFilter{}, err
+		}
+		if !onlyActive {
+			filter.IncludeInactive = true
 		}
 	}
-
-	cityRaw = strings.TrimSpace(strings.ToLower(cityRaw))
-	filtered := make([]domain.Property, 0, len(items))
-	for _, item := range items {
-		if ownerIDRaw != "" && item.UserID != ownerID {
-			continue
-		}
-		if cityRaw != "" && !strings.Contains(strings.ToLower(item.City), cityRaw) {
-			continue
-		}
-		if minRateRaw != "" && item.DailyRate < minRate {
-			continue
-		}
-		if maxRateRaw != "" && item.DailyRate > maxRate {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return filtered, nil
+	return filter, nil
 }
 
 func (h *PropertyHandler) ListByOwner(w http.ResponseWriter, r *http.Request) {
