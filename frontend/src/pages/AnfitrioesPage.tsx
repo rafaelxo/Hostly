@@ -8,7 +8,7 @@ import {
   Spinner,
   inputCls,
 } from "../components/common";
-import { IconEdit, IconPlus, IconTrash } from "../components/icons";
+import { IconEdit, IconPlus, IconSearch, IconTrash } from "../components/icons";
 import { useUsuarios } from "../hooks/useData";
 import {
   usuarioService,
@@ -38,7 +38,8 @@ export function AnfitrioesPage({
   onlyActive = false,
   canManage = true,
 }: AnfitrioesPageProps) {
-  const { data: usuarios, loading, error, refetch } = useUsuarios();
+  const [search, setSearch] = useState("");
+  const { data: usuarios, loading, error, refetch } = useUsuarios(search);
   const [view, setView] = useState<View>("list");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -208,7 +209,7 @@ export function AnfitrioesPage({
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4 md:p-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
             <h3 className="text-base font-semibold text-stone-800">{title}</h3>
             <p className="text-xs text-stone-400">
@@ -223,6 +224,17 @@ export function AnfitrioesPage({
               <IconPlus /> Novo Usuário
             </button>
           )}
+        </div>
+        <div className="flex items-center gap-2 bg-[var(--hostly-surface-soft)] border border-[var(--hostly-border)] rounded-xl px-4 py-2.5">
+          <span className="text-stone-400">
+            <IconSearch />
+          </span>
+          <input
+            className="flex-1 bg-transparent text-sm text-stone-600 placeholder-stone-400 outline-none"
+            placeholder="Buscar por nome, e-mail, perfil ou ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
       {loading && <Spinner />}

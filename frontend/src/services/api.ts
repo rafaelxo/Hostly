@@ -327,8 +327,13 @@ export const anfitriaoService = {
 };
 
 export const usuarioService = {
-  async getAll(): Promise<Usuario[]> {
-    return request<Usuario[]>("/usuarios");
+  async getAll(params?: { busca?: string }): Promise<Usuario[]> {
+    const query = new URLSearchParams();
+    if (params?.busca?.trim()) {
+      query.set("busca", params.busca.trim());
+    }
+    const qs = query.toString();
+    return request<Usuario[]>(qs ? `/usuarios?${qs}` : "/usuarios");
   },
   async getById(id: number): Promise<Usuario> {
     return request<Usuario>(`/usuarios/${id}`);
