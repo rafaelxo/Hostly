@@ -5,6 +5,16 @@ import (
 	paymentuc "backend/internal/usecase/payment"
 )
 
+type ListFilter struct {
+	PropertyID *int
+	UserID     *int
+	Role       string
+	Status     string
+	PeriodFrom string
+	PeriodTo   string
+	Query      string
+}
+
 type Service interface {
 	Create(item domain.Reservation) (domain.Reservation, error)
 	GetByID(id int) (domain.Reservation, error)
@@ -13,6 +23,7 @@ type Service interface {
 	GetByGuestID(guestID int) ([]domain.Reservation, error)
 	GetByHostID(hostID int) ([]domain.Reservation, error)
 	GetByHostWithProperties(hostID int) (map[int][]domain.Reservation, error)
+	List(filter ListFilter) ([]domain.Reservation, error)
 	Update(id int, item ReservationUpdate) (domain.Reservation, error)
 	Confirm(id int, input ConfirmReservationInput) (domain.Reservation, error)
 	Delete(id int) error

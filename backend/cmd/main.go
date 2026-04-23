@@ -15,17 +15,17 @@ import (
 )
 
 func main() {
-	propertyRepo, err := repository.NewPropertyFileRepository("data/imoveis.db")
-	if err != nil {
-		log.Fatalf("erro ao inicializar repositorio de imoveis: %v", err)
-	}
-
 	userRepo, err := repository.NewUserFileRepository("data/usuarios.db")
 	if err != nil {
 		log.Fatalf("erro ao inicializar repositorio de usuarios: %v", err)
 	}
 
-	reservationRepo, err := repository.NewReservationFileRepository("data/reservas.db")
+	propertyRepo, err := repository.NewPropertyFileRepository("data/imoveis.db", userRepo.GetByID)
+	if err != nil {
+		log.Fatalf("erro ao inicializar repositorio de imoveis: %v", err)
+	}
+
+	reservationRepo, err := repository.NewReservationFileRepository("data/reservas.db", propertyRepo.GetByID, userRepo.GetByID)
 	if err != nil {
 		log.Fatalf("erro ao inicializar repositorio de reservas: %v", err)
 	}

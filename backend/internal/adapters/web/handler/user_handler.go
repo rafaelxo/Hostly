@@ -80,7 +80,9 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
-	users, err := h.svc.GetAll()
+	users, err := h.svc.List(useruc.ListFilter{
+		Query: r.URL.Query().Get("busca"),
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
 		return

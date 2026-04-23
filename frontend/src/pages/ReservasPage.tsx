@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ErrorMsg,
   Field,
@@ -89,78 +89,24 @@ export function ReservasPage({
   const [periodoDe, setPeriodoDe] = useState("");
   const [periodoAte, setPeriodoAte] = useState("");
   const [usuarioBusca, setUsuarioBusca] = useState("");
-  const periodFrom = periodoDe ? parseLocalDate(periodoDe) : null;
-  const periodTo = periodoAte ? parseLocalDate(periodoAte) : null;
-
-  const getUsuarioNomeById = (idUsuario: number) =>
-    (usuarios ?? []).find((item) => item.idUsuario === idUsuario)?.nome ??
-    `Usuário #${idUsuario}`;
-
-  const filteredReservas = useMemo(() => {
-    const query = usuarioBusca.trim().toLowerCase();
-
-    return reservas.filter((item) => {
-      if (statusFiltro && item.status !== statusFiltro) {
-        return false;
-      }
-
-      if (periodFrom || periodTo) {
-        const startDate = parseLocalDate(item.dataInicio);
-        const endDate = parseLocalDate(item.dataFim);
-        if (!startDate || !endDate) {
-          return false;
-        }
-        if (periodFrom && endDate < periodFrom) {
-          return false;
-        }
-        if (periodTo && startDate > periodTo) {
-          return false;
-        }
-      }
-
-      if (query) {
-        const hostName = getUsuarioNomeById(
-          (imoveis ?? []).find(
-            (property) => property.idImovel === item.idImovel,
-          )?.idUsuario ?? -1,
-        ).toLowerCase();
-        const guestName = getUsuarioNomeById(item.idHospede).toLowerCase();
-        const property = (imoveis ?? []).find(
-          (current) => current.idImovel === item.idImovel,
-        );
-        const matches =
-          hostName.includes(query) ||
-          guestName.includes(query) ||
-          String(item.idHospede).includes(query) ||
-          String(property?.idUsuario ?? "").includes(query) ||
-          String(item.idReserva).includes(query);
-        if (!matches) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [
-    reservas,
-    usuarioBusca,
-    statusFiltro,
-    periodFrom,
-    periodTo,
-    imoveis,
-    usuarios,
-  ]);
+  const filteredReservas = reservas;
 
   const refetch = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data =
-        typeof hostId === "number"
-          ? await reservaService.getAll({ idUsuario: hostId })
-          : typeof guestId === "number"
-            ? await reservaService.getAll({ idUsuario: guestId })
-            : await reservaService.getAll();
+      const data = await reservaService.getAll({
+        ...(typeof hostId === "number"
+          ? { idUsuario: hostId, papel: "anfitriao" as const }
+          : {}),
+        ...(typeof guestId === "number"
+          ? { idUsuario: guestId, papel: "hospede" as const }
+          : {}),
+        ...(statusFiltro ? { status: statusFiltro } : {}),
+        ...(periodoDe ? { periodoDe } : {}),
+        ...(periodoAte ? { periodoAte } : {}),
+        ...(usuarioBusca.trim() ? { busca: usuarioBusca.trim() } : {}),
+      });
       setReservas(
         activeOnly ? data.filter((item) => isReservaAtiva(item)) : data,
       );
@@ -173,7 +119,15 @@ export function ReservasPage({
 
   useEffect(() => {
     void refetch();
-  }, [guestId, hostId, activeOnly]);
+  }, [
+    activeOnly,
+    guestId,
+    hostId,
+    periodoAte,
+    periodoDe,
+    statusFiltro,
+    usuarioBusca,
+  ]);
 
   useEffect(() => {
     if (!canManage || typeof preselectedImovelId !== "number") return;
@@ -489,7 +443,7 @@ export function ReservasPage({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
           <input
             className={inputCls}
-            placeholder="Buscar usuário por nome ou ID"
+            placeholder="Buscar por nome do hóspede ou do imóvel..."
             value={usuarioBusca}
             onChange={(e) => setUsuarioBusca(e.target.value)}
           />

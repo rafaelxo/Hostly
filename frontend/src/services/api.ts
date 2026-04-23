@@ -175,6 +175,8 @@ export const imoveisService = {
   async getAll(params?: {
     idUsuario?: number;
     cidade?: string;
+    busca?: string;
+    ativo?: boolean;
     ordenarPor?: "valorDiaria" | "cidade" | "dataCadastro" | "titulo";
     ordem?: "asc" | "desc";
     valorDiaria?: number;
@@ -187,6 +189,12 @@ export const imoveisService = {
     }
     if (params?.cidade?.trim()) {
       query.set("cidade", params.cidade.trim());
+    }
+    if (params?.busca?.trim()) {
+      query.set("busca", params.busca.trim());
+    }
+    if (typeof params?.ativo === "boolean") {
+      query.set("ativo", String(params.ativo));
     }
     if (params?.ordenarPor) {
       query.set("ordenarPor", params.ordenarPor);
@@ -319,8 +327,13 @@ export const anfitriaoService = {
 };
 
 export const usuarioService = {
-  async getAll(): Promise<Usuario[]> {
-    return request<Usuario[]>("/usuarios");
+  async getAll(params?: { busca?: string }): Promise<Usuario[]> {
+    const query = new URLSearchParams();
+    if (params?.busca?.trim()) {
+      query.set("busca", params.busca.trim());
+    }
+    const qs = query.toString();
+    return request<Usuario[]>(qs ? `/usuarios?${qs}` : "/usuarios");
   },
   async getById(id: number): Promise<Usuario> {
     return request<Usuario>(`/usuarios/${id}`);
@@ -346,6 +359,8 @@ export const reservaService = {
   async getAll(params?: {
     idImovel?: number;
     idUsuario?: number;
+    papel?: "hospede" | "anfitriao";
+    busca?: string;
     status?: Reserva["status"];
     periodoDe?: string;
     periodoAte?: string;
@@ -358,6 +373,12 @@ export const reservaService = {
     }
     if (typeof params?.idUsuario === "number") {
       query.set("idUsuario", String(params.idUsuario));
+    }
+    if (params?.papel) {
+      query.set("papel", params.papel);
+    }
+    if (params?.busca?.trim()) {
+      query.set("busca", params.busca.trim());
     }
     if (params?.status) {
       query.set("status", params.status);

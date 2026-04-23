@@ -2,6 +2,10 @@ package user
 
 import "backend/internal/domain"
 
+type ListFilter struct {
+	Query string
+}
+
 type UserPatch struct {
 	Name     *string
 	Email    *string
@@ -59,6 +63,34 @@ func (s *service) GetAllHosts() ([]domain.User, error) {
 
 func (s *service) GetAll() ([]domain.User, error) {
 	users, err := s.repo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	activeUsers := make([]domain.User, 0, len(users))
+	for _, u := range users {
+		if u.Active {
+			activeUsers = append(activeUsers, u)
+		}
+	}
+	return activeUsers, nil
+}
+
+type userSearcher interface {
+	Search(query string) ([]domain.User, error)
+}
+
+func (s *service) List(filter ListFilter) ([]domain.User, error) {
+	var (
+		users []domain.User
+		err   error
+	)
+
+	if searcher, ok := s.repo.(userSearcher); ok {
+		users, err = searcher.Search(filter.Query)
+	} else {
+		users, err = s.repo.GetAll()
+	}
 	if err != nil {
 		return nil, err
 	}

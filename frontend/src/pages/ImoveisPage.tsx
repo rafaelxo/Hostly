@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Badge,
   ErrorMsg,
@@ -124,50 +124,31 @@ export function ImoveisPage({
     setLoading(true);
     setError(null);
     try {
-      const data =
-        typeof ownerId === "number"
-          ? await imoveisService.getAll({ idUsuario: ownerId })
-          : await imoveisService.getAll();
+      const minPrice = Number(valorMinFiltro || PRICE_MIN);
+      const maxPrice = Number(valorMaxFiltro || PRICE_MAX);
+      const data = await imoveisService.getAll({
+        ...(typeof ownerId === "number" ? { idUsuario: ownerId } : {}),
+        ...(search.trim() ? { busca: search.trim() } : {}),
+        valorDiariaMin: minPrice,
+        valorDiariaMax: maxPrice,
+        ativo: onlyActive ? true : false,
+      });
       setImoveis(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
       setLoading(false);
     }
-  }, [ownerId]);
+  }, [onlyActive, ownerId, search, valorMaxFiltro, valorMinFiltro]);
 
   useEffect(() => {
     void refetch();
   }, [refetch]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const minPrice = Number(valorMinFiltro || PRICE_MIN);
-    const maxPrice = Number(valorMaxFiltro || PRICE_MAX);
-
-    return imoveis.filter((item) => {
-      if (onlyActive && !item.ativo) {
-        return false;
-      }
-      if (item.valorDiaria < minPrice || item.valorDiaria > maxPrice) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-
-      const hostName =
-        (anfitrioes ?? []).find((user) => user.idUsuario === item.idUsuario)
-          ?.nome ?? "";
-
-      return (
-        item.titulo.toLowerCase().includes(query) ||
-        item.cidade.toLowerCase().includes(query) ||
-        hostName.toLowerCase().includes(query) ||
-        String(item.idUsuario).includes(query)
-      );
-    });
-  }, [imoveis, onlyActive, search, valorMinFiltro, valorMaxFiltro, anfitrioes]);
+  const filtered = imoveis;
+  const anfitriaoPorId = new Map(
+    (anfitrioes ?? []).map((anfitriao) => [anfitriao.idUsuario, anfitriao.nome]),
+  );
 
   const minFiltroValue = Number(valorMinFiltro || PRICE_MIN);
   const maxFiltroValue = Number(valorMaxFiltro || PRICE_MAX);
@@ -676,6 +657,9 @@ export function ImoveisPage({
                   Cidade
                 </th>
                 <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
+                  Anfitrião
+                </th>
+                <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
                   Diária
                 </th>
                 <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
@@ -707,6 +691,10 @@ export function ImoveisPage({
                   </td>
                   <td className="px-4 py-4 text-sm text-stone-600">
                     {item.cidade}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-stone-600">
+                    {anfitriaoPorId.get(item.idUsuario) ??
+                      `#${item.idUsuario}`}
                   </td>
                   <td className="px-4 py-4 text-sm font-semibold text-stone-700">
                     R$ {item.valorDiaria.toLocaleString("pt-BR")}

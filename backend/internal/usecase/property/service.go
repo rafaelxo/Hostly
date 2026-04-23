@@ -2,11 +2,21 @@ package property
 
 import "backend/internal/domain"
 
+type ListFilter struct {
+	OwnerID         *int
+	City            string
+	MinDailyRate    *float64
+	MaxDailyRate    *float64
+	Query           string
+	IncludeInactive bool
+}
+
 type Service interface {
 	Create(item domain.Property) (domain.Property, error)
 	GetByID(id int) (domain.Property, error)
 	GetAll() ([]domain.Property, error)
 	GetByOwnerID(ownerID int) ([]domain.Property, error)
+	List(filter ListFilter) ([]domain.Property, error)
 	Update(id int, item domain.Property) (domain.Property, error)
 	Patch(id int, p PropertyPatch) (domain.Property, error)
 	Delete(id int) error

@@ -52,8 +52,10 @@ export function useAnfitrioes() {
   return useAsync<Anfitriao[]>(() => anfitriaoService.getAll());
 }
 
-export function useUsuarios() {
-  return useAsync<Usuario[]>(() => usuarioService.getAll());
+export function useUsuarios(busca?: string) {
+  return useAsync<Usuario[]>(() =>
+    usuarioService.getAll(busca?.trim() ? { busca } : undefined),
+  );
 }
 
 export function useReservas() {

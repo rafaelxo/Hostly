@@ -8,6 +8,7 @@ type Service interface {
 	GetByEmail(email string) (domain.User, error)
 	GetAllHosts() ([]domain.User, error)
 	GetAll() ([]domain.User, error)
+	List(filter ListFilter) ([]domain.User, error)
 	Update(id int, item domain.User) (domain.User, error)
 	Patch(id int, p UserPatch) (domain.User, error)
 	Delete(id int) error
