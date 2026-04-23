@@ -146,6 +146,9 @@ export function ImoveisPage({
   }, [refetch]);
 
   const filtered = imoveis;
+  const anfitriaoPorId = new Map(
+    (anfitrioes ?? []).map((anfitriao) => [anfitriao.idUsuario, anfitriao.nome]),
+  );
 
   const minFiltroValue = Number(valorMinFiltro || PRICE_MIN);
   const maxFiltroValue = Number(valorMaxFiltro || PRICE_MAX);
@@ -654,6 +657,9 @@ export function ImoveisPage({
                   Cidade
                 </th>
                 <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
+                  Anfitrião
+                </th>
+                <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
                   Diária
                 </th>
                 <th className="text-left text-xs font-semibold text-stone-400 uppercase tracking-wider px-4 py-3">
@@ -685,6 +691,10 @@ export function ImoveisPage({
                   </td>
                   <td className="px-4 py-4 text-sm text-stone-600">
                     {item.cidade}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-stone-600">
+                    {anfitriaoPorId.get(item.idUsuario) ??
+                      `#${item.idUsuario}`}
                   </td>
                   <td className="px-4 py-4 text-sm font-semibold text-stone-700">
                     R$ {item.valorDiaria.toLocaleString("pt-BR")}
