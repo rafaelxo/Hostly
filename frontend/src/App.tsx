@@ -46,7 +46,6 @@ type NavItem = { id: PageId; label: string; icon: ReactNode };
 const LAYOUT_GAP = 16;
 const SIDEBAR_WIDTH_EXPANDED = 256;
 const SIDEBAR_WIDTH_COLLAPSED = 80;
-const CONTENT_OUTER_GUTTER = 24;
 
 function getNav(user: Usuario): NavItem[] {
   if (user.tipo === "ADMIN") {
@@ -103,30 +102,6 @@ function getDefaultPage(user: Usuario): PageId {
   if (user.tipo === "ANFITRIAO") return "dashboard";
   return "dashboard";
 }
-
-const PAGE_TITLES: Record<PageId, string> = {
-  dashboard: "Dashboard",
-  minhasReservas: "Minhas Reservas",
-  meusImoveis: "Meus Imóveis",
-  reservasRecebidas: "Reservas dos Imóveis",
-  receita: "Receita por Imóvel",
-  reservasAtivas: "Reservas Ativas",
-  comodidades: "Comodidades",
-  usuariosAtivos: "Usuários Ativos",
-  imoveisAtivos: "Imóveis Ativos",
-};
-
-const PAGE_SUBTITLES: Record<PageId, string> = {
-  dashboard: "Visão consolidada da operação em tempo real",
-  minhasReservas: "Acompanhe, edite e confirme suas reservas",
-  meusImoveis: "Gerencie seu portfólio com filtros e ordenação",
-  reservasRecebidas: "Reservas recebidas nos seus imóveis",
-  receita: "Evolução de receita por imóvel e período",
-  reservasAtivas: "Reservas atualmente em vigência",
-  comodidades: "Catálogo de comodidades do sistema",
-  usuariosAtivos: "Usuários com conta ativa na plataforma",
-  imoveisAtivos: "Imóveis publicados e disponíveis",
-};
 
 type NovoImovelForm = {
   titulo: string;
@@ -437,35 +412,6 @@ const Sidebar = ({
   </aside>
 );
 
-const Header = ({
-  title,
-  subtitle,
-  contentLeft,
-}: {
-  title: string;
-  subtitle?: string;
-  contentLeft: number;
-}) => (
-  <header
-    className="app-header fixed top-4 z-20 h-16 rounded-2xl flex items-center gap-4 px-6 transition-all duration-300"
-    style={{
-      left: contentLeft + CONTENT_OUTER_GUTTER,
-      right: LAYOUT_GAP + CONTENT_OUTER_GUTTER,
-    }}
-  >
-    <div className="flex-1 min-w-0">
-      <h2 className="font-bold text-[var(--hostly-text)] tracking-tight truncate">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="text-xs text-[var(--hostly-muted)] mt-0.5 truncate">
-          {subtitle}
-        </p>
-      )}
-    </div>
-  </header>
-);
-
 export default function App() {
   const [user, setUser] = useState<Usuario | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -625,12 +571,6 @@ export default function App() {
     ? SIDEBAR_WIDTH_COLLAPSED
     : SIDEBAR_WIDTH_EXPANDED;
   const contentLeft = sidebarWidth + LAYOUT_GAP * 2;
-  const headerTitle =
-    viewingImovelId !== null ? "Detalhes do Imóvel" : PAGE_TITLES[page];
-  const headerSubtitle =
-    viewingImovelId !== null
-      ? "Visualização completa do imóvel selecionado"
-      : PAGE_SUBTITLES[page];
 
   const renderPage = () => {
     if (!user) return null;
@@ -745,12 +685,7 @@ export default function App() {
         className="transition-all duration-300"
         style={{ marginLeft: contentLeft }}
       >
-        <Header
-          title={headerTitle}
-          subtitle={headerSubtitle}
-          contentLeft={contentLeft}
-        />
-        <main className="pt-24 min-h-screen pb-6">
+        <main className="pt-4 min-h-screen pb-6">
           <div className="w-full px-6">
             <div className="app-main-surface">{renderPage()}</div>
           </div>

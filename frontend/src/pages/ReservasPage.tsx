@@ -443,7 +443,7 @@ export function ReservasPage({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
           <input
             className={inputCls}
-            placeholder="Buscar usuário por nome ou ID"
+            placeholder="Buscar por nome do hóspede ou do imóvel..."
             value={usuarioBusca}
             onChange={(e) => setUsuarioBusca(e.target.value)}
           />
