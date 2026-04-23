@@ -64,7 +64,7 @@ func newBinaryEntityStore[T any](path string, getID func(T) int, setID func(*T, 
 	if err := store.ensureFile(); err != nil {
 		return nil, err
 	}
-	if err := store.rebuildIndex(); err != nil {
+	if err := store.initializeIndex(); err != nil {
 		return nil, err
 	}
 	return store, nil
@@ -103,24 +103,30 @@ func (s *binaryEntityStore[T]) ensureFile() error {
 	return nil
 }
 
-// rebuildIndex is used at startup (before the store is shared). Acquires the lock.
-func (s *binaryEntityStore[T]) rebuildIndex() error {
+// initializeIndex is used at startup (before the store is shared). Acquires the lock.
+func (s *binaryEntityStore[T]) initializeIndex() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.loadIndexFileLocked(); err == nil {
+		return nil
+	}
 	return s.rebuildIndexLocked()
 }
 
 // rebuildIndexLocked performs the actual rebuild. Must be called with s.mu already held.
 func (s *binaryEntityStore[T]) rebuildIndexLocked() error {
-	file, err := os.OpenFile(s.path, os.O_RDONLY, 0o644)
+	file, err := os.OpenFile(s.path, os.O_RDWR, 0o644)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	if _, err := readHeader(file); err != nil {
+	header, err := readHeader(file)
+	if err != nil {
 		return err
 	}
+	lastID := header.LastID
+	activeCount := int32(0)
 
 	s.index.Reset()
 	if _, err := file.Seek(fileHeaderSize, io.SeekStart); err != nil {
@@ -145,6 +151,9 @@ func (s *binaryEntityStore[T]) rebuildIndexLocked() error {
 		deleted := headerBuf[0] == 1
 		recordID := int(int32(binary.LittleEndian.Uint32(headerBuf[1:5])))
 		size := binary.LittleEndian.Uint32(headerBuf[5:9])
+		if int32(recordID) > lastID {
+			lastID = int32(recordID)
+		}
 		if _, err := file.Seek(int64(size), io.SeekCurrent); err != nil {
 			return err
 		}
@@ -152,10 +161,60 @@ func (s *binaryEntityStore[T]) rebuildIndexLocked() error {
 		if deleted {
 			continue
 		}
+		activeCount++
 		s.index.Insert(recordID, offset)
 	}
 
+	if header.LastID != lastID || header.Count != activeCount {
+		header.LastID = lastID
+		header.Count = activeCount
+		if err := writeHeader(file, header); err != nil {
+			return err
+		}
+	}
+
 	return s.persistIndexFile()
+}
+
+func (s *binaryEntityStore[T]) loadIndexFileLocked() error {
+	file, err := os.OpenFile(s.indexPath, os.O_RDONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	header := make([]byte, indexHeaderSize)
+	if _, err := io.ReadFull(file, header); err != nil {
+		return err
+	}
+	if header[0] != indexVersion {
+		return domain.ErrInvalidEntity
+	}
+
+	count := binary.LittleEndian.Uint32(header[1:5])
+	entries := make([]indexEntry, 0, count)
+	for i := uint32(0); i < count; i++ {
+		var buf [indexEntrySize]byte
+		if _, err := io.ReadFull(file, buf[:]); err != nil {
+			return err
+		}
+		entries = append(entries, indexEntry{
+			Key:    int(int32(binary.LittleEndian.Uint32(buf[0:4]))),
+			Offset: int64(binary.LittleEndian.Uint64(buf[4:12])),
+		})
+	}
+
+	s.index.Load(entries)
+	return nil
+}
+
+// syncPrimaryIndexLocked keeps in-memory and persisted index close to data-file state.
+// Any persistence failure is treated as recoverable because the index can always be rebuilt from .db.
+func (s *binaryEntityStore[T]) syncPrimaryIndexLocked() {
+	if err := s.persistIndexFile(); err == nil {
+		return
+	}
+	_ = s.rebuildIndexLocked()
 }
 
 func (s *binaryEntityStore[T]) persistIndexFile() error {
@@ -245,10 +304,7 @@ func (s *binaryEntityStore[T]) Create(item T) (T, error) {
 		var zero T
 		return zero, err
 	}
-	if err := s.persistIndexFile(); err != nil {
-		var zero T
-		return zero, err
-	}
+	s.syncPrimaryIndexLocked()
 
 	return item, nil
 }
@@ -407,10 +463,7 @@ func (s *binaryEntityStore[T]) Update(id int, item T) (T, error) {
 		var zero T
 		return zero, err
 	}
-	if err := s.persistIndexFile(); err != nil {
-		var zero T
-		return zero, err
-	}
+	s.syncPrimaryIndexLocked()
 
 	return item, nil
 }
@@ -451,7 +504,8 @@ func (s *binaryEntityStore[T]) Delete(id int) error {
 	if err := writeHeader(file, header); err != nil {
 		return err
 	}
-	return s.persistIndexFile()
+	s.syncPrimaryIndexLocked()
+	return nil
 }
 
 func (s *binaryEntityStore[T]) HashStats() HashIndexStats {

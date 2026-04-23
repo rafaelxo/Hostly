@@ -3,12 +3,15 @@ package repository
 import (
 	"backend/internal/domain"
 	reservationuc "backend/internal/usecase/reservation"
+	"errors"
+	"sync"
 )
 
 type ReservationFileRepository struct {
 	store        *binaryEntityStore[domain.Reservation]
 	byPropertyID *multiExtensibleHashIndex
 	byGuestID    *multiExtensibleHashIndex
+	mu           sync.Mutex
 }
 
 func NewReservationFileRepository(path string) (*ReservationFileRepository, error) {
@@ -43,18 +46,16 @@ func (r *ReservationFileRepository) HashStats() HashIndexStats {
 }
 
 func (r *ReservationFileRepository) Create(item domain.Reservation) (domain.Reservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	created, err := r.store.Create(item)
 	if err != nil {
 		return domain.Reservation{}, err
 	}
 	r.byPropertyID.Insert(created.PropertyID, int64(created.ID))
 	r.byGuestID.Insert(created.GuestID, int64(created.ID))
-	if err := r.flushRelationIndexes(); err != nil {
-		r.byPropertyID.Delete(created.PropertyID, int64(created.ID))
-		r.byGuestID.Delete(created.GuestID, int64(created.ID))
-		_ = r.store.Delete(created.ID)
-		return domain.Reservation{}, err
-	}
+	r.syncRelationIndexesLocked()
 	return created, nil
 }
 
@@ -67,38 +68,65 @@ func (r *ReservationFileRepository) GetAll() ([]domain.Reservation, error) {
 }
 
 func (r *ReservationFileRepository) GetByPropertyID(propertyID int) ([]domain.Reservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	ids, ok := r.byPropertyID.Get(propertyID)
 	if !ok {
 		return []domain.Reservation{}, nil
 	}
 	items := make([]domain.Reservation, 0, len(ids))
+	dirty := false
 	for _, id := range ids {
 		item, err := r.store.GetByID(int(id))
 		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				r.byPropertyID.Delete(propertyID, id)
+				dirty = true
+				continue
+			}
 			return nil, err
 		}
 		items = append(items, item)
+	}
+	if dirty {
+		r.syncRelationIndexesLocked()
 	}
 	return items, nil
 }
 
 func (r *ReservationFileRepository) GetByGuestID(guestID int) ([]domain.Reservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	ids, ok := r.byGuestID.Get(guestID)
 	if !ok {
 		return []domain.Reservation{}, nil
 	}
 	items := make([]domain.Reservation, 0, len(ids))
+	dirty := false
 	for _, id := range ids {
 		item, err := r.store.GetByID(int(id))
 		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				r.byGuestID.Delete(guestID, id)
+				dirty = true
+				continue
+			}
 			return nil, err
 		}
 		items = append(items, item)
+	}
+	if dirty {
+		r.syncRelationIndexesLocked()
 	}
 	return items, nil
 }
 
 func (r *ReservationFileRepository) Update(id int, item domain.Reservation) (domain.Reservation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	existing, err := r.store.GetByID(id)
 	if err != nil {
 		return domain.Reservation{}, err
@@ -115,13 +143,14 @@ func (r *ReservationFileRepository) Update(id int, item domain.Reservation) (dom
 		r.byGuestID.Delete(existing.GuestID, int64(existing.ID))
 		r.byGuestID.Insert(updated.GuestID, int64(updated.ID))
 	}
-	if err := r.flushRelationIndexes(); err != nil {
-		return domain.Reservation{}, err
-	}
+	r.syncRelationIndexesLocked()
 	return updated, nil
 }
 
 func (r *ReservationFileRepository) Delete(id int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	existing, err := r.store.GetByID(id)
 	if err != nil {
 		return err
@@ -131,7 +160,8 @@ func (r *ReservationFileRepository) Delete(id int) error {
 	}
 	r.byPropertyID.Delete(existing.PropertyID, int64(existing.ID))
 	r.byGuestID.Delete(existing.GuestID, int64(existing.ID))
-	return r.flushRelationIndexes()
+	r.syncRelationIndexesLocked()
+	return nil
 }
 
 func (r *ReservationFileRepository) rebuildRelationIndexes() error {
@@ -153,6 +183,13 @@ func (r *ReservationFileRepository) flushRelationIndexes() error {
 		return err
 	}
 	return r.byGuestID.persistToFile()
+}
+
+func (r *ReservationFileRepository) syncRelationIndexesLocked() {
+	if err := r.flushRelationIndexes(); err == nil {
+		return
+	}
+	_ = r.rebuildRelationIndexes()
 }
 
 var _ reservationuc.Repository = (*ReservationFileRepository)(nil)

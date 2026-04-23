@@ -1,10 +1,15 @@
 package repository
 
-import "backend/internal/domain"
+import (
+	"backend/internal/domain"
+	"errors"
+	"sync"
+)
 
 type PropertyFileRepository struct {
 	store    *binaryEntityStore[domain.Property]
 	byUserID *multiExtensibleHashIndex
+	mu       sync.Mutex
 }
 
 func NewPropertyFileRepository(path string) (*PropertyFileRepository, error) {
@@ -35,16 +40,15 @@ func (r *PropertyFileRepository) HashStats() HashIndexStats {
 }
 
 func (r *PropertyFileRepository) Create(item domain.Property) (domain.Property, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	created, err := r.store.Create(item)
 	if err != nil {
 		return domain.Property{}, err
 	}
 	r.byUserID.Insert(created.UserID, int64(created.ID))
-	if err := r.byUserID.persistToFile(); err != nil {
-		r.byUserID.Delete(created.UserID, int64(created.ID))
-		_ = r.store.Delete(created.ID)
-		return domain.Property{}, err
-	}
+	r.syncRelationIndexLocked()
 	return created, nil
 }
 
@@ -57,22 +61,37 @@ func (r *PropertyFileRepository) GetAll() ([]domain.Property, error) {
 }
 
 func (r *PropertyFileRepository) GetByOwnerID(ownerID int) ([]domain.Property, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	ids, ok := r.byUserID.Get(ownerID)
 	if !ok {
 		return []domain.Property{}, nil
 	}
 	items := make([]domain.Property, 0, len(ids))
+	dirty := false
 	for _, id := range ids {
 		item, err := r.store.GetByID(int(id))
 		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				r.byUserID.Delete(ownerID, id)
+				dirty = true
+				continue
+			}
 			return nil, err
 		}
 		items = append(items, item)
+	}
+	if dirty {
+		r.syncRelationIndexLocked()
 	}
 	return items, nil
 }
 
 func (r *PropertyFileRepository) Update(id int, item domain.Property) (domain.Property, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	existing, err := r.store.GetByID(id)
 	if err != nil {
 		return domain.Property{}, err
@@ -84,14 +103,15 @@ func (r *PropertyFileRepository) Update(id int, item domain.Property) (domain.Pr
 	if existing.UserID != updated.UserID {
 		r.byUserID.Delete(existing.UserID, int64(existing.ID))
 		r.byUserID.Insert(updated.UserID, int64(updated.ID))
-		if err := r.byUserID.persistToFile(); err != nil {
-			return domain.Property{}, err
-		}
+		r.syncRelationIndexLocked()
 	}
 	return updated, nil
 }
 
 func (r *PropertyFileRepository) Delete(id int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	existing, err := r.store.GetByID(id)
 	if err != nil {
 		return err
@@ -100,7 +120,8 @@ func (r *PropertyFileRepository) Delete(id int) error {
 		return err
 	}
 	r.byUserID.Delete(existing.UserID, int64(existing.ID))
-	return r.byUserID.persistToFile()
+	r.syncRelationIndexLocked()
+	return nil
 }
 
 func (r *PropertyFileRepository) rebuildByUserIndex() error {
@@ -113,4 +134,11 @@ func (r *PropertyFileRepository) rebuildByUserIndex() error {
 		r.byUserID.Insert(item.UserID, int64(item.ID))
 	}
 	return r.byUserID.persistToFile()
+}
+
+func (r *PropertyFileRepository) syncRelationIndexLocked() {
+	if err := r.byUserID.persistToFile(); err == nil {
+		return
+	}
+	_ = r.rebuildByUserIndex()
 }
