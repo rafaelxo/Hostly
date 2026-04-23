@@ -58,16 +58,19 @@ function getNav(user: Usuario): NavItem[] {
         icon: <IconBuilding />,
       },
       {
-        id: "comodidades",
-        label: "Comodidades",
-        icon: <IconSparkles />,
-      },
-      {
         id: "reservasAtivas",
         label: "Reservas Ativas",
         icon: <IconCalendar />,
       },
-      { id: "usuariosAtivos", label: "Usuários Ativos", icon: <IconUsers /> },
+      { id: "usuariosAtivos",
+        label: "Usuários Ativos",
+        icon: <IconUsers />
+      },
+      {
+        id: "comodidades",
+        label: "Comodidades",
+        icon: <IconSparkles />,
+      },
     ];
   }
 

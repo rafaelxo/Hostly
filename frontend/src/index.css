@@ -79,3 +79,46 @@ textarea {
 	position: relative;
 	z-index: 0;
 }
+
+.hostly-range-slider {
+	-webkit-appearance: none;
+	appearance: none;
+	background: transparent;
+	pointer-events: none;
+}
+
+.hostly-range-slider::-webkit-slider-runnable-track {
+	height: 0;
+	background: transparent;
+}
+
+.hostly-range-slider::-moz-range-track {
+	height: 0;
+	background: transparent;
+	border: 0;
+}
+
+.hostly-range-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 16px;
+	height: 16px;
+	border-radius: 9999px;
+	background: #ea7a17;
+	border: 2px solid #ffffff;
+	box-shadow: 0 0 0 1px rgba(201, 94, 9, 0.25);
+	cursor: pointer;
+	pointer-events: auto;
+	margin-top: -8px;
+}
+
+.hostly-range-slider::-moz-range-thumb {
+	width: 16px;
+	height: 16px;
+	border-radius: 9999px;
+	background: #ea7a17;
+	border: 2px solid #ffffff;
+	box-shadow: 0 0 0 1px rgba(201, 94, 9, 0.25);
+	cursor: pointer;
+	pointer-events: auto;
+}

@@ -2,9 +2,7 @@ package handler
 
 import (
 	"backend/internal/domain"
-	aeduc "backend/internal/usecase/aed"
 	"backend/internal/usecase/property"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,52 +62,79 @@ type propertyUpdatePayload struct {
 }
 
 type PropertyHandler struct {
-	svc    property.Service
-	aedSvc aeduc.Service
+	svc property.Service
 }
 
-func NewPropertyHandler(svc property.Service, aedSvc aeduc.Service) *PropertyHandler {
-	return &PropertyHandler{svc: svc, aedSvc: aedSvc}
+func NewPropertyHandler(svc property.Service) *PropertyHandler {
+	return &PropertyHandler{svc: svc}
 }
 
 func (h *PropertyHandler) List(w http.ResponseWriter, r *http.Request) {
-	if h.aedSvc != nil {
-		query := r.URL.Query()
-
-		if rawDailyRate := query.Get("valorDiaria"); rawDailyRate != "" {
-			dailyRate, err := strconv.ParseFloat(rawDailyRate, 64)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, err)
-				return
-			}
-
-			searchResult, err := h.aedSvc.SearchPropertiesByDailyRateBPlus(dailyRate)
-			if err != nil {
-				respondDomainError(w, err)
-				return
-			}
-			respondJSON(w, http.StatusOK, searchResult.Imoveis)
-			return
-		}
-
-		if sortBy := query.Get("ordenarPor"); sortBy != "" {
-			asc := query.Get("ordem") != "desc"
-			result, err := h.aedSvc.ExternalSortProperties(sortBy, asc)
-			if err != nil {
-				respondDomainError(w, err)
-				return
-			}
-			respondJSON(w, http.StatusOK, result.Itens)
-			return
-		}
-	}
+	query := r.URL.Query()
 
 	items, err := h.svc.GetAll()
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, items)
+	filtered, err := filterProperties(
+		items,
+		query.Get("idUsuario"),
+		query.Get("cidade"),
+		query.Get("valorDiariaMin"),
+		query.Get("valorDiariaMax"),
+	)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, filtered)
+}
+
+func filterProperties(items []domain.Property, ownerIDRaw, cityRaw, minRateRaw, maxRateRaw string) ([]domain.Property, error) {
+	var ownerID int
+	var err error
+	if ownerIDRaw != "" {
+		ownerID, err = strconv.Atoi(ownerIDRaw)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var minRate float64
+	if minRateRaw != "" {
+		minRate, err = strconv.ParseFloat(minRateRaw, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var maxRate float64
+	if maxRateRaw != "" {
+		maxRate, err = strconv.ParseFloat(maxRateRaw, 64)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cityRaw = strings.TrimSpace(strings.ToLower(cityRaw))
+	filtered := make([]domain.Property, 0, len(items))
+	for _, item := range items {
+		if ownerIDRaw != "" && item.UserID != ownerID {
+			continue
+		}
+		if cityRaw != "" && !strings.Contains(strings.ToLower(item.City), cityRaw) {
+			continue
+		}
+		if minRateRaw != "" && item.DailyRate < minRate {
+			continue
+		}
+		if maxRateRaw != "" && item.DailyRate > maxRate {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, nil
 }
 
 func (h *PropertyHandler) ListByOwner(w http.ResponseWriter, r *http.Request) {
@@ -522,53 +547,45 @@ func parsePropertyPatchFromMultipart(r *http.Request) (property.PropertyPatch, e
 func extractUploadedPhotos(r *http.Request) ([]string, error) {
 	files := r.MultipartForm.File["fotos"]
 	if len(files) == 0 {
-		return nil, fmt.Errorf("pelo menos uma foto e obrigatoria")
+		return nil, fmt.Errorf("foto obrigatoria")
 	}
 
-	photos := make([]string, 0, len(files))
-	for _, header := range files {
-		file, err := header.Open()
-		if err != nil {
-			return nil, err
-		}
-		data, err := io.ReadAll(file)
-		file.Close()
-		if err != nil {
-			return nil, err
-		}
-		if len(data) == 0 {
-			continue
-		}
-
-		contentType := header.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = http.DetectContentType(data)
-		}
-		if !strings.HasPrefix(contentType, "image/") {
-			return nil, fmt.Errorf("arquivo %s nao e imagem valida", header.Filename)
-		}
-
-		encoded := base64.StdEncoding.EncodeToString(data)
-		photos = append(photos, "data:"+contentType+";base64,"+encoded)
+	header := files[0]
+	file, err := header.Open()
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(file)
+	file.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("foto vazia")
 	}
 
-	if len(photos) == 0 {
-		return nil, fmt.Errorf("pelo menos uma foto e obrigatoria")
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	if !strings.HasPrefix(contentType, "image/") {
+		return nil, fmt.Errorf("arquivo %s nao e imagem valida", header.Filename)
 	}
 
-	return photos, nil
+	dataURL, err := saveRequestImage(data, contentType)
+	if err != nil {
+		return nil, err
+	}
+	return []string{dataURL}, nil
 }
 
 func extractUploadedPhotosOptional(r *http.Request) (*[]string, error) {
-	files := r.MultipartForm.File["fotos"]
-	if len(files) == 0 {
+	if len(r.MultipartForm.File["fotos"]) == 0 {
 		return nil, nil
 	}
-
 	photos, err := extractUploadedPhotos(r)
 	if err != nil {
 		return nil, err
 	}
-
 	return &photos, nil
 }

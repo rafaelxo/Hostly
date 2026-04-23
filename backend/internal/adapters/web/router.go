@@ -21,12 +21,13 @@ type Dependencies struct {
 }
 
 func NewRouter(deps Dependencies) http.Handler {
-	props := handler.NewPropertyHandler(deps.PropertyService, deps.AEDService)
+	props := handler.NewPropertyHandler(deps.PropertyService)
 	users := handler.NewUserHandler(deps.UserService)
 	reservs := handler.NewReservationHandler(deps.ReservationService)
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)
 	auth := handler.NewAuthHandler(deps.AuthService)
 	amenities := handler.NewAmenityHandler(deps.AmenityService)
+	aed := handler.NewAEDHandler(deps.AEDService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +61,9 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("POST /auth/register", auth.Register)
 	mux.HandleFunc("POST /auth/login", auth.Login)
 	mux.HandleFunc("GET /auth/me", auth.Me)
+
+	mux.HandleFunc("GET /aed/diagnostico", aed.Diagnostico)
+	mux.HandleFunc("GET /aed/anfitriao/{id}", aed.RelacaoAnfitriao)
 
 	mux.HandleFunc("GET /dashboard/stats", dash.Stats)
 	mux.HandleFunc("GET /comodidades", amenities.List)

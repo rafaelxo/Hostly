@@ -173,11 +173,21 @@ export function hasSessionToken() {
 
 export const imoveisService = {
   async getAll(params?: {
+    idUsuario?: number;
+    cidade?: string;
     ordenarPor?: "valorDiaria" | "cidade" | "dataCadastro" | "titulo";
     ordem?: "asc" | "desc";
     valorDiaria?: number;
+    valorDiariaMin?: number;
+    valorDiariaMax?: number;
   }): Promise<Imovel[]> {
     const query = new URLSearchParams();
+    if (typeof params?.idUsuario === "number") {
+      query.set("idUsuario", String(params.idUsuario));
+    }
+    if (params?.cidade?.trim()) {
+      query.set("cidade", params.cidade.trim());
+    }
     if (params?.ordenarPor) {
       query.set("ordenarPor", params.ordenarPor);
     }
@@ -186,6 +196,12 @@ export const imoveisService = {
     }
     if (typeof params?.valorDiaria === "number") {
       query.set("valorDiaria", String(params.valorDiaria));
+    }
+    if (typeof params?.valorDiariaMin === "number") {
+      query.set("valorDiariaMin", String(params.valorDiariaMin));
+    }
+    if (typeof params?.valorDiariaMax === "number") {
+      query.set("valorDiariaMax", String(params.valorDiariaMax));
     }
 
     const qs = query.toString();
@@ -329,7 +345,10 @@ export const usuarioService = {
 export const reservaService = {
   async getAll(params?: {
     idImovel?: number;
+    idUsuario?: number;
     status?: Reserva["status"];
+    periodoDe?: string;
+    periodoAte?: string;
     ordenarPor?: "dataInicio" | "dataFim" | "valorTotal";
     ordem?: "asc" | "desc";
   }): Promise<Reserva[]> {
@@ -337,8 +356,17 @@ export const reservaService = {
     if (typeof params?.idImovel === "number") {
       query.set("idImovel", String(params.idImovel));
     }
+    if (typeof params?.idUsuario === "number") {
+      query.set("idUsuario", String(params.idUsuario));
+    }
     if (params?.status) {
       query.set("status", params.status);
+    }
+    if (params?.periodoDe) {
+      query.set("periodoDe", params.periodoDe);
+    }
+    if (params?.periodoAte) {
+      query.set("periodoAte", params.periodoAte);
     }
     if (params?.ordenarPor) {
       query.set("ordenarPor", params.ordenarPor);

@@ -12,6 +12,7 @@ type UserService interface {
 
 type PropertyService interface {
 	Create(item domain.Property) (domain.Property, error)
+	Delete(id int) error
 }
 
 type RegisterInput struct {

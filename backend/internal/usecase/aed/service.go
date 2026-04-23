@@ -2,7 +2,6 @@ package aed
 
 import (
 	"backend/internal/domain"
-	"fmt"
 )
 
 type PropertyReader interface {
@@ -39,37 +38,9 @@ type HostRelationship struct {
 	ImoveisComReservas []PropertyWithReservations `json:"imoveisComReservas"`
 }
 
-type ExternalSortMetadata struct {
-	Atributo           string `json:"atributo"`
-	Ordem              string `json:"ordem"`
-	RunsGeradas        int    `json:"runsGeradas"`
-	RegistrosOrdenados int    `json:"registrosOrdenados"`
-}
-
-type ExternalSortResult struct {
-	Metadados ExternalSortMetadata `json:"metadados"`
-	Itens     []domain.Property    `json:"itens"`
-}
-
-type BPlusTreeStats struct {
-	Ordem            int `json:"ordem"`
-	Altura           int `json:"altura"`
-	QuantidadeChaves int `json:"quantidadeChaves"`
-	QuantidadeFolhas int `json:"quantidadeFolhas"`
-}
-
-type BPlusSearchResult struct {
-	ValorDiaria float64           `json:"valorDiaria"`
-	IDs         []int             `json:"ids"`
-	Imoveis     []domain.Property `json:"imoveis"`
-	Arvore      BPlusTreeStats    `json:"arvore"`
-}
-
 type Service interface {
 	HashDiagnostics() HashDiagnostics
 	RelationshipByHost(hostID int) (HostRelationship, error)
-	ExternalSortProperties(attribute string, asc bool) (ExternalSortResult, error)
-	SearchPropertiesByDailyRateBPlus(dailyRate float64) (BPlusSearchResult, error)
 }
 
 type service struct {
@@ -133,13 +104,4 @@ func (s *service) RelationshipByHost(hostID int) (HostRelationship, error) {
 	}
 
 	return result, nil
-}
-
-func sanitizeSortAttribute(attribute string) (string, error) {
-	switch attribute {
-	case "valorDiaria", "cidade", "dataCadastro", "titulo":
-		return attribute, nil
-	default:
-		return "", fmt.Errorf("%w: atributo de ordenacao invalido", domain.ErrInvalidEntity)
-	}
 }

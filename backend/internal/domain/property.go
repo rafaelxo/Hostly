@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -65,13 +66,14 @@ func (p Property) Validate() error {
 	}
 
 	if len(p.Photos) == 0 {
-		return fmt.Errorf("%w: pelo menos uma foto e obrigatoria", ErrInvalidEntity)
+		return fmt.Errorf("%w: foto obrigatoria", ErrInvalidEntity)
+	}
+	if len(p.Photos) > 1 {
+		return fmt.Errorf("%w: apenas uma foto e permitida", ErrInvalidEntity)
 	}
 
-	for _, photo := range p.Photos {
-		if !isValidPhotoURL(photo) {
-			return fmt.Errorf("%w: foto invalida (%s)", ErrInvalidEntity, photo)
-		}
+	if !isValidPhotoURL(p.Photos[0]) {
+		return fmt.Errorf("%w: foto invalida", ErrInvalidEntity)
 	}
 
 	for _, amenity := range p.Amenities {
@@ -133,7 +135,12 @@ func validateAddress(a Address) error {
 }
 
 func isValidPhotoURL(value string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(value))
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "data:") {
+		return isValidPhotoDataURL(trimmed)
+	}
+
+	parsed, err := url.Parse(trimmed)
 	if err != nil {
 		return false
 	}
@@ -141,4 +148,41 @@ func isValidPhotoURL(value string) bool {
 		return false
 	}
 	return parsed.Host != ""
+}
+
+func isValidPhotoDataURL(value string) bool {
+	parts := strings.SplitN(value, ",", 2)
+	if len(parts) != 2 {
+		return false
+	}
+
+	header := strings.ToLower(parts[0])
+	if !strings.HasPrefix(header, "data:image/") || !strings.Contains(header, ";base64") {
+		return false
+	}
+
+	allowedMimes := []string{
+		"data:image/jpeg",
+		"data:image/jpg",
+		"data:image/png",
+		"data:image/webp",
+		"data:image/gif",
+	}
+	allowed := false
+	for _, prefix := range allowedMimes {
+		if strings.HasPrefix(header, prefix) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return false
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	return len(decoded) > 0
 }

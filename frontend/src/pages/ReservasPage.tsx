@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ErrorMsg,
   Field,
@@ -81,14 +81,75 @@ export function ReservasPage({
   const { data: usuarios } = useUsuarios();
   const [view, setView] = useState<View>("list");
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<"" | Reserva["status"]>("");
-  const [ordenarPor, setOrdenarPor] = useState<
-    "dataInicio" | "dataFim" | "valorTotal"
-  >("dataInicio");
-  const [ordem, setOrdem] = useState<"asc" | "desc">("desc");
+  const [periodoDe, setPeriodoDe] = useState("");
+  const [periodoAte, setPeriodoAte] = useState("");
+  const [usuarioBusca, setUsuarioBusca] = useState("");
+  const periodFrom = periodoDe ? parseLocalDate(periodoDe) : null;
+  const periodTo = periodoAte ? parseLocalDate(periodoAte) : null;
+
+  const getUsuarioNomeById = (idUsuario: number) =>
+    (usuarios ?? []).find((item) => item.idUsuario === idUsuario)?.nome ??
+    `Usuário #${idUsuario}`;
+
+  const filteredReservas = useMemo(() => {
+    const query = usuarioBusca.trim().toLowerCase();
+
+    return reservas.filter((item) => {
+      if (statusFiltro && item.status !== statusFiltro) {
+        return false;
+      }
+
+      if (periodFrom || periodTo) {
+        const startDate = parseLocalDate(item.dataInicio);
+        const endDate = parseLocalDate(item.dataFim);
+        if (!startDate || !endDate) {
+          return false;
+        }
+        if (periodFrom && endDate < periodFrom) {
+          return false;
+        }
+        if (periodTo && startDate > periodTo) {
+          return false;
+        }
+      }
+
+      if (query) {
+        const hostName = getUsuarioNomeById(
+          (imoveis ?? []).find(
+            (property) => property.idImovel === item.idImovel,
+          )?.idUsuario ?? -1,
+        ).toLowerCase();
+        const guestName = getUsuarioNomeById(item.idHospede).toLowerCase();
+        const property = (imoveis ?? []).find(
+          (current) => current.idImovel === item.idImovel,
+        );
+        const matches =
+          hostName.includes(query) ||
+          guestName.includes(query) ||
+          String(item.idHospede).includes(query) ||
+          String(property?.idUsuario ?? "").includes(query) ||
+          String(item.idReserva).includes(query);
+        if (!matches) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    reservas,
+    usuarioBusca,
+    statusFiltro,
+    periodFrom,
+    periodTo,
+    imoveis,
+    usuarios,
+  ]);
 
   const refetch = async () => {
     setLoading(true);
@@ -96,14 +157,10 @@ export function ReservasPage({
     try {
       const data =
         typeof hostId === "number"
-          ? await reservaService.getByAnfitriao(hostId)
+          ? await reservaService.getAll({ idUsuario: hostId })
           : typeof guestId === "number"
-            ? await reservaService.getByHospede(guestId)
-            : await reservaService.getAll({
-                status: statusFiltro || undefined,
-                ordenarPor,
-                ordem,
-              });
+            ? await reservaService.getAll({ idUsuario: guestId })
+            : await reservaService.getAll();
       setReservas(
         activeOnly ? data.filter((item) => isReservaAtiva(item)) : data,
       );
@@ -116,7 +173,7 @@ export function ReservasPage({
 
   useEffect(() => {
     void refetch();
-  }, [guestId, hostId, activeOnly, statusFiltro, ordenarPor, ordem]);
+  }, [guestId, hostId, activeOnly]);
 
   useEffect(() => {
     if (!canManage || typeof preselectedImovelId !== "number") return;
@@ -136,6 +193,7 @@ export function ReservasPage({
 
   const startNew = () => {
     setEditingId(null);
+    setFormError(null);
     setForm({
       ...initialForm,
       idHospede: fixedGuestId ? String(fixedGuestId) : "",
@@ -151,6 +209,7 @@ export function ReservasPage({
     dataFim: string;
   }) => {
     setEditingId(item.idReserva);
+    setFormError(null);
     setForm({
       idImovel: String(item.idImovel),
       idHospede: String(item.idHospede),
@@ -179,11 +238,36 @@ export function ReservasPage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    const idImovel = Number(form.idImovel);
+    const idHospede = Number(form.idHospede);
+    if (!idImovel || !idHospede) {
+      setFormError("Selecione um imóvel e um hóspede válidos.");
+      return;
+    }
+
+    if (!form.dataInicio || !form.dataFim) {
+      setFormError("Informe data de início e data de fim.");
+      return;
+    }
+
+    const inicio = parseLocalDate(form.dataInicio);
+    const fim = parseLocalDate(form.dataFim);
+    if (!inicio || !fim) {
+      setFormError("As datas informadas são inválidas.");
+      return;
+    }
+    if (fim <= inicio) {
+      setFormError("A data de fim deve ser posterior à data de início.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
-        idImovel: Number(form.idImovel),
-        idHospede: Number(form.idHospede),
+        idImovel,
+        idHospede,
         dataInicio: form.dataInicio,
         dataFim: form.dataFim,
         formaPagamento: form.formaPagamento,
@@ -197,7 +281,12 @@ export function ReservasPage({
       await refetch();
       setView("list");
       setEditingId(null);
+      setFormError(null);
       setForm(initialForm);
+    } catch (e) {
+      setFormError(
+        e instanceof Error ? e.message : "Não foi possível registrar a reserva.",
+      );
     } finally {
       setSaving(false);
     }
@@ -348,6 +437,7 @@ export function ReservasPage({
               R$ {calcTotal().toLocaleString("pt-BR")}
             </p>
           </div>
+          {formError && <ErrorMsg msg={formError} />}
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
               type="button"
@@ -383,7 +473,7 @@ export function ReservasPage({
           <div>
             <h3 className="text-base font-semibold text-stone-800">{title}</h3>
             <p className="text-xs text-stone-400">
-              {reservas.length} reserva(s) registrada(s)
+              {filteredReservas.length} reserva(s) registrada(s)
             </p>
           </div>
           {canManage && (
@@ -396,49 +486,46 @@ export function ReservasPage({
           )}
         </div>
 
-        {typeof hostId !== "number" && typeof guestId !== "number" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <select
-              className={inputCls}
-              value={statusFiltro}
-              onChange={(e) =>
-                setStatusFiltro(e.target.value as "" | Reserva["status"])
-              }
-            >
-              <option value="">Todos os status</option>
-              <option value="PENDENTE">Pendente</option>
-              <option value="CONFIRMADA">Confirmada</option>
-              <option value="CANCELADA">Cancelada</option>
-            </select>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+          <input
+            className={inputCls}
+            placeholder="Buscar usuário por nome ou ID"
+            value={usuarioBusca}
+            onChange={(e) => setUsuarioBusca(e.target.value)}
+          />
 
-            <select
-              className={inputCls}
-              value={ordenarPor}
-              onChange={(e) =>
-                setOrdenarPor(
-                  e.target.value as "dataInicio" | "dataFim" | "valorTotal",
-                )
-              }
-            >
-              <option value="dataInicio">Ordenar por início</option>
-              <option value="dataFim">Ordenar por fim</option>
-              <option value="valorTotal">Ordenar por valor</option>
-            </select>
+          <select
+            className={inputCls}
+            value={statusFiltro}
+            onChange={(e) =>
+              setStatusFiltro(e.target.value as "" | Reserva["status"])
+            }
+          >
+            <option value="">Todos os status</option>
+            <option value="PENDENTE">Pendente</option>
+            <option value="CONFIRMADA">Confirmada</option>
+            <option value="CANCELADA">Cancelada</option>
+          </select>
 
-            <select
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
               className={inputCls}
-              value={ordem}
-              onChange={(e) => setOrdem(e.target.value as "asc" | "desc")}
-            >
-              <option value="desc">Mais recentes primeiro</option>
-              <option value="asc">Mais antigas primeiro</option>
-            </select>
+              type="date"
+              value={periodoDe}
+              onChange={(e) => setPeriodoDe(e.target.value)}
+            />
+            <input
+              className={inputCls}
+              type="date"
+              value={periodoAte}
+              onChange={(e) => setPeriodoAte(e.target.value)}
+            />
           </div>
-        )}
+        </div>
       </div>
       {loading && <Spinner />}
       {error && <ErrorMsg msg={error} />}
-      {reservas && (
+      {filteredReservas.length > 0 && (
         <div className="card-elevated overflow-hidden">
           <table className="w-full">
             <thead>
@@ -462,7 +549,7 @@ export function ReservasPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50">
-              {reservas.map((r) => (
+              {filteredReservas.map((r) => (
                 <tr
                   key={r.idReserva}
                   onClick={() => setSelectedReserva(r)}

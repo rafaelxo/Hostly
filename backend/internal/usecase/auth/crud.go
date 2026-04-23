@@ -28,6 +28,19 @@ func (s *service) Register(input RegisterInput) (Session, error) {
 	userType := domain.UserTypeGuest
 	if input.CreateAsHost {
 		userType = domain.UserTypeHost
+		if input.InitialProperty == nil {
+			return Session{}, domain.ErrInvalidEntity
+		}
+
+		previewProperty := *input.InitialProperty
+		previewProperty.UserID = 1
+		previewProperty.Active = true
+		if previewProperty.CreatedAt == "" {
+			previewProperty.CreatedAt = time.Now().Format("2006-01-02")
+		}
+		if err := previewProperty.Validate(); err != nil {
+			return Session{}, err
+		}
 	}
 
 	user, err := s.userSvc.Create(domain.User{
@@ -49,9 +62,15 @@ func (s *service) Register(input RegisterInput) (Session, error) {
 		if propertyPayload.CreatedAt == "" {
 			propertyPayload.CreatedAt = time.Now().Format("2006-01-02")
 		}
-		if _, err := s.propertySvc.Create(propertyPayload); err != nil {
+		createdProperty, err := s.propertySvc.Create(propertyPayload)
+		if err != nil {
 			_ = s.userSvc.Delete(user.ID)
 			return Session{}, err
+		}
+		if createdProperty.UserID != user.ID {
+			_ = s.propertySvc.Delete(createdProperty.ID)
+			_ = s.userSvc.Delete(user.ID)
+			return Session{}, domain.ErrInvalidEntity
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"backend/internal/domain"
 	authuc "backend/internal/usecase/auth"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -59,6 +60,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var initialProperty *domain.Property
 	if req.AsHost && req.Property != nil {
+		photos, err := normalizeInitialPropertyPhotos(req.Property.Photos)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, err)
+			return
+		}
+
 		initialProperty = &domain.Property{
 			Title:       req.Property.Title,
 			Description: req.Property.Description,
@@ -74,7 +81,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			City:      req.Property.City,
 			DailyRate: req.Property.DailyRate,
 			CreatedAt: req.Property.CreatedAt,
-			Photos:    req.Property.Photos,
+			Photos:    photos,
 			Active:    req.Property.Active,
 		}
 	}
@@ -93,6 +100,31 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, session)
+}
+
+func normalizeInitialPropertyPhotos(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("foto obrigatoria")
+	}
+
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return nil, fmt.Errorf("foto obrigatoria")
+	}
+
+	if strings.HasPrefix(strings.ToLower(value), "data:image/") {
+		dataURL, err := savePhotoFromDataURL(value)
+		if err != nil {
+			return nil, err
+		}
+		return []string{dataURL}, nil
+	}
+
+	if strings.HasPrefix(strings.ToLower(value), "http://") || strings.HasPrefix(strings.ToLower(value), "https://") {
+		return []string{value}, nil
+	}
+
+	return nil, fmt.Errorf("formato de foto invalido")
 }
 
 func mapAmenities(values []struct {

@@ -18,10 +18,13 @@ import {
   IconUpload,
 } from "../components/icons";
 import { COMMON_AMENITIES } from "../constants/amenities";
-import { useUsuarios } from "../hooks/useData";
-import { useComodidades } from "../hooks/useData";
+import { useAnfitrioes, useComodidades } from "../hooks/useData";
 import { imoveisService, type Imovel } from "../services/api";
 import { geocodeAddressInput } from "../services/geocoding";
+
+const PRICE_MIN = 0;
+const PRICE_MAX = 5000;
+const PRICE_GAP = 100;
 
 type View = "list" | "new" | "edit";
 
@@ -75,19 +78,22 @@ export function ImoveisPage({
   const [imoveis, setImoveis] = useState<Imovel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { data: usuarios } = useUsuarios();
+  const { data: anfitrioes } = useAnfitrioes();
   const [view, setView] = useState<View>("list");
   const [search, setSearch] = useState("");
-  const [ordenarPor, setOrdenarPor] = useState<
-    "" | "valorDiaria" | "cidade" | "dataCadastro" | "titulo"
-  >("");
-  const [ordem, setOrdem] = useState<"asc" | "desc">("asc");
-  const [filtroValorDiaria, setFiltroValorDiaria] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
   const [editPhotoFiles, setEditPhotoFiles] = useState<File[]>([]);
+  const [newPhotoPreviewUrls, setNewPhotoPreviewUrls] = useState<string[]>([]);
+  const [editPhotoPreviewUrls, setEditPhotoPreviewUrls] = useState<string[]>(
+    [],
+  );
+  const [valorMinFiltro, setValorMinFiltro] = useState(String(PRICE_MIN));
+  const [valorMaxFiltro, setValorMaxFiltro] = useState(
+    String(PRICE_MAX),
+  );
   const [form, setForm] = useState<FormState>(initialForm);
   const newPhotosInputRef = useRef<HTMLInputElement | null>(null);
   const editPhotosInputRef = useRef<HTMLInputElement | null>(null);
@@ -96,43 +102,79 @@ export function ImoveisPage({
     comodidadesCatalog?.filter((item) => item.ativo).map((item) => item.nome) ??
     COMMON_AMENITIES;
 
+  useEffect(() => {
+    const urls = newPhotoFiles.map((file) => URL.createObjectURL(file));
+    setNewPhotoPreviewUrls(urls);
+
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [newPhotoFiles]);
+
+  useEffect(() => {
+    const urls = editPhotoFiles.map((file) => URL.createObjectURL(file));
+    setEditPhotoPreviewUrls(urls);
+
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [editPhotoFiles]);
+
   const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data =
         typeof ownerId === "number"
-          ? await imoveisService.getByOwner(ownerId)
-          : await imoveisService.getAll({
-              ordenarPor: ordenarPor || undefined,
-              ordem,
-              valorDiaria:
-                filtroValorDiaria.trim() !== ""
-                  ? Number(filtroValorDiaria)
-                  : undefined,
-            });
+          ? await imoveisService.getAll({ idUsuario: ownerId })
+          : await imoveisService.getAll();
       setImoveis(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
       setLoading(false);
     }
-  }, [ownerId, ordenarPor, ordem, filtroValorDiaria]);
+  }, [ownerId]);
 
   useEffect(() => {
     void refetch();
   }, [refetch]);
 
-  const filtered = useMemo(
-    () =>
-      imoveis.filter(
-        (i) =>
-          (!onlyActive || i.ativo) &&
-          (i.titulo.toLowerCase().includes(search.toLowerCase()) ||
-            i.cidade.toLowerCase().includes(search.toLowerCase())),
-      ),
-    [imoveis, onlyActive, search],
-  );
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const minPrice = Number(valorMinFiltro || PRICE_MIN);
+    const maxPrice = Number(valorMaxFiltro || PRICE_MAX);
+
+    return imoveis.filter((item) => {
+      if (onlyActive && !item.ativo) {
+        return false;
+      }
+      if (item.valorDiaria < minPrice || item.valorDiaria > maxPrice) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+
+      const hostName =
+        (anfitrioes ?? []).find((user) => user.idUsuario === item.idUsuario)
+          ?.nome ?? "";
+
+      return (
+        item.titulo.toLowerCase().includes(query) ||
+        item.cidade.toLowerCase().includes(query) ||
+        hostName.toLowerCase().includes(query) ||
+        String(item.idUsuario).includes(query)
+      );
+    });
+  }, [imoveis, onlyActive, search, valorMinFiltro, valorMaxFiltro, anfitrioes]);
+
+  const minFiltroValue = Number(valorMinFiltro || PRICE_MIN);
+  const maxFiltroValue = Number(valorMaxFiltro || PRICE_MAX);
+  const minPercent =
+    ((minFiltroValue - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100;
+  const maxPercent =
+    ((maxFiltroValue - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -250,6 +292,8 @@ export function ImoveisPage({
       await refetch();
       setView("list");
       setForm(initialForm);
+      setValorMinFiltro(String(PRICE_MIN));
+      setValorMaxFiltro(String(PRICE_MAX));
       setNewPhotoFiles([]);
       setEditPhotoFiles([]);
       setEditingId(null);
@@ -277,14 +321,12 @@ export function ImoveisPage({
                   required
                   disabled={Boolean(ownerId)}
                 >
-                  <option value="">Selecione um anfitrião...</option>
-                  {(usuarios ?? [])
-                    .filter((u) => u.tipo === "ANFITRIAO")
-                    .map((u) => (
-                      <option key={u.idUsuario} value={u.idUsuario}>
-                        {u.nome}
-                      </option>
-                    ))}
+                  <option value="">Selecione um usuário...</option>
+                  {(anfitrioes ?? []).map((u) => (
+                    <option key={u.idUsuario} value={u.idUsuario}>
+                      #{u.idUsuario} - {u.nome}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="Cidade" required>
@@ -397,14 +439,33 @@ export function ImoveisPage({
                         className="w-full min-h-28 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 hover:border-amber-400 hover:bg-amber-50/30 transition-colors flex items-center justify-center"
                         onClick={() => newPhotosInputRef.current?.click()}
                       >
-                        <div className="flex flex-col items-center gap-1 text-stone-600">
-                          <span className="text-amber-500">
-                            <IconUpload />
-                          </span>
-                          <span className="text-sm font-semibold">
-                            Escolher arquivos
-                          </span>
-                        </div>
+                        {newPhotoFiles.length === 0 ? (
+                          <div className="flex flex-col items-center gap-1 text-stone-600">
+                            <span className="text-amber-500">
+                              <IconUpload />
+                            </span>
+                            <span className="text-sm font-semibold">
+                              Selecione um arquivo
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="w-full space-y-3 p-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {newPhotoPreviewUrls.map((src, index) => (
+                                <img
+                                  key={`${src}-${index}`}
+                                  src={src}
+                                  alt={`Preview ${index + 1}`}
+                                  className="h-20 w-full rounded-lg object-cover border border-stone-200"
+                                />
+                              ))}
+                            </div>
+                            <p className="text-xs text-stone-500 text-center">
+                              {newPhotoFiles.length} arquivo(s) selecionado(s).
+                              Clique para trocar.
+                            </p>
+                          </div>
+                        )}
                       </button>
                     </>
                   ) : (
@@ -425,14 +486,33 @@ export function ImoveisPage({
                         className="w-full min-h-28 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 hover:border-amber-400 hover:bg-amber-50/30 transition-colors flex items-center justify-center"
                         onClick={() => editPhotosInputRef.current?.click()}
                       >
-                        <div className="flex flex-col items-center gap-1 text-stone-600">
-                          <span className="text-amber-500">
-                            <IconUpload />
-                          </span>
-                          <span className="text-sm font-semibold">
-                            Escolher arquivos
-                          </span>
-                        </div>
+                        {editPhotoFiles.length === 0 ? (
+                          <div className="flex flex-col items-center gap-1 text-stone-600">
+                            <span className="text-amber-500">
+                              <IconUpload />
+                            </span>
+                            <span className="text-sm font-semibold">
+                              Selecione um arquivo
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="w-full space-y-3 p-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {editPhotoPreviewUrls.map((src, index) => (
+                                <img
+                                  key={`${src}-${index}`}
+                                  src={src}
+                                  alt={`Preview ${index + 1}`}
+                                  className="h-20 w-full rounded-lg object-cover border border-stone-200"
+                                />
+                              ))}
+                            </div>
+                            <p className="text-xs text-stone-500 text-center">
+                              {editPhotoFiles.length} arquivo(s) selecionado(s).
+                              Clique para trocar.
+                            </p>
+                          </div>
+                        )}
                       </button>
                     </>
                   )}
@@ -441,7 +521,7 @@ export function ImoveisPage({
               <div className="md:col-span-2">
                 <Field label="Comodidades">
                   <div className="flex flex-wrap gap-2">
-                {amenityOptions.map((amenity) => {
+                    {amenityOptions.map((amenity) => {
                       const selected = form.comodidades.includes(amenity);
                       return (
                         <button
@@ -525,56 +605,61 @@ export function ImoveisPage({
           </span>
           <input
             className="flex-1 bg-transparent text-sm text-stone-600 placeholder-stone-400 outline-none"
-            placeholder="Buscar por título ou cidade..."
+            placeholder="Buscar por título, cidade ou anfitrião..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        {typeof ownerId !== "number" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <select
-              className={inputCls}
-              value={ordenarPor}
-              onChange={(e) =>
-                setOrdenarPor(
-                  e.target.value as
-                    | ""
-                    | "valorDiaria"
-                    | "cidade"
-                    | "dataCadastro"
-                    | "titulo",
-                )
-              }
-            >
-              <option value="">Sem ordenacao</option>
-              <option value="titulo">Titulo</option>
-              <option value="cidade">Cidade</option>
-              <option value="valorDiaria">Valor da diaria</option>
-              <option value="dataCadastro">Data de cadastro</option>
-            </select>
-
-            <select
-              className={inputCls}
-              value={ordem}
-              onChange={(e) => setOrdem(e.target.value as "asc" | "desc")}
-              disabled={!ordenarPor}
-            >
-              <option value="asc">Ordem crescente</option>
-              <option value="desc">Ordem decrescente</option>
-            </select>
-
+        <div className="mt-3 rounded-2xl border border-[var(--hostly-border)] bg-[var(--hostly-surface-soft)] p-4 space-y-4">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-stone-500">
+            <span>Faixa da diária</span>
+            <span>
+              R$ {Number(valorMinFiltro).toLocaleString("pt-BR")} - R${" "}
+              {Number(valorMaxFiltro).toLocaleString("pt-BR")}
+            </span>
+          </div>
+          <div className="relative h-10">
+            <div className="absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-stone-200" />
+            <div
+              className="absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-amber-400"
+              style={{
+                left: `${minPercent}%`,
+                right: `${100 - maxPercent}%`,
+              }}
+            />
             <input
-              className={inputCls}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Filtrar por diaria exata"
-              value={filtroValorDiaria}
-              onChange={(e) => setFiltroValorDiaria(e.target.value)}
+              type="range"
+              min={PRICE_MIN}
+              max={PRICE_MAX}
+              step={50}
+              value={valorMinFiltro}
+              onChange={(e) => {
+                const next = Math.min(
+                  Number(e.target.value),
+                  Number(valorMaxFiltro) - PRICE_GAP,
+                );
+                setValorMinFiltro(String(Math.max(PRICE_MIN, next)));
+              }}
+              className="hostly-range-slider absolute inset-0 z-20 w-full"
+            />
+            <input
+              type="range"
+              min={PRICE_MIN}
+              max={PRICE_MAX}
+              step={50}
+              value={valorMaxFiltro}
+              onChange={(e) => {
+                const next = Math.max(
+                  Number(e.target.value),
+                  Number(valorMinFiltro) + PRICE_GAP,
+                );
+                setValorMaxFiltro(String(Math.min(PRICE_MAX, next)));
+              }}
+              className="hostly-range-slider absolute inset-0 z-30 w-full"
             />
           </div>
-        )}
+        </div>
       </div>
 
       {loading && <Spinner />}

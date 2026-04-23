@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	payloadVersion                  = uint8(3)
+	payloadVersion                  = uint8(4)
+	payloadVersionV3                = uint8(3)
 	entityTypeProperty              = 1
 	entityTypeUser                  = 2
 	entityTypeReservation           = 3
@@ -655,7 +656,7 @@ func encodeStandardPayload(entityType uint8, fields []recordField) ([]byte, erro
 		if err := buf.WriteByte(field.id); err != nil {
 			return nil, err
 		}
-		if err := writeUint16(buf, uint16(len(field.data))); err != nil {
+		if err := writeUint32(buf, uint32(len(field.data))); err != nil {
 			return nil, err
 		}
 		if _, err := buf.Write(field.data); err != nil {
@@ -673,7 +674,8 @@ func decodeStandardPayload(payload []byte, expectedEntityType uint8) (map[uint8]
 	if payload[0] == 'H' {
 		return decodeHST1Payload(payload, expectedEntityType)
 	}
-	if payload[0] != payloadVersion {
+	version := payload[0]
+	if version != payloadVersion && version != payloadVersionV3 {
 		return nil, fmt.Errorf("formato legado")
 	}
 
@@ -700,11 +702,20 @@ func decodeStandardPayload(payload []byte, expectedEntityType uint8) (map[uint8]
 			return nil, err
 		}
 
-		size, err := readUint16(reader)
-		if err != nil {
-			return nil, err
+		var size uint32
+		if version == payloadVersionV3 {
+			s, err := readUint16(reader)
+			if err != nil {
+				return nil, err
+			}
+			size = uint32(s)
+		} else {
+			size, err = readUint32(reader)
+			if err != nil {
+				return nil, err
+			}
 		}
-		if uint32(size) > uint32(reader.Len()) {
+		if uint64(size) > uint64(reader.Len()) {
 			return nil, fmt.Errorf("tamanho de campo invalido")
 		}
 

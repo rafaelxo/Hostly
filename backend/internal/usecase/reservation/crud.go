@@ -3,6 +3,7 @@ package reservation
 import (
 	"backend/internal/domain"
 	paymentuc "backend/internal/usecase/payment"
+	"fmt"
 	"math"
 	"time"
 )
@@ -31,7 +32,7 @@ func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 		return domain.Reservation{}, err
 	}
 	if !property.Active {
-		return domain.Reservation{}, domain.ErrInvalidEntity
+		return domain.Reservation{}, fmt.Errorf("%w: imovel inativo", domain.ErrInvalidEntity)
 	}
 
 	guest, err := s.guestRepo.GetByID(item.GuestID)
@@ -39,7 +40,7 @@ func (s *service) Create(item domain.Reservation) (domain.Reservation, error) {
 		return domain.Reservation{}, err
 	}
 	if !guest.Active {
-		return domain.Reservation{}, domain.ErrInvalidEntity
+		return domain.Reservation{}, fmt.Errorf("%w: hospede inativo", domain.ErrInvalidEntity)
 	}
 
 	totalValue, err := calculateTotalValue(property.DailyRate, item.StartDate, item.EndDate)
@@ -88,17 +89,7 @@ func (s *service) GetByGuestID(guestID int) ([]domain.Reservation, error) {
 	if _, err := s.guestRepo.GetByID(guestID); err != nil {
 		return nil, err
 	}
-	all, err := s.repo.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	filtered := make([]domain.Reservation, 0)
-	for _, item := range all {
-		if item.GuestID == guestID {
-			filtered = append(filtered, item)
-		}
-	}
-	return filtered, nil
+	return s.repo.GetByGuestID(guestID)
 }
 
 func (s *service) GetByHostID(hostID int) ([]domain.Reservation, error) {
@@ -113,26 +104,22 @@ func (s *service) GetByHostID(hostID int) ([]domain.Reservation, error) {
 		return nil, domain.ErrInvalidEntity
 	}
 
-	properties, err := s.propertyRepo.GetAll()
+	properties, err := s.propertyRepo.GetByOwnerID(hostID)
 	if err != nil {
 		return nil, err
 	}
-	owned := make(map[int]struct{})
+	owned := make(map[int]struct{}, len(properties))
 	for _, p := range properties {
-		if p.UserID == hostID {
-			owned[p.ID] = struct{}{}
-		}
+		owned[p.ID] = struct{}{}
 	}
 
-	all, err := s.repo.GetAll()
-	if err != nil {
-		return nil, err
-	}
 	filtered := make([]domain.Reservation, 0)
-	for _, item := range all {
-		if _, ok := owned[item.PropertyID]; ok {
-			filtered = append(filtered, item)
+	for propertyID := range owned {
+		items, err := s.repo.GetByPropertyID(propertyID)
+		if err != nil {
+			return nil, err
 		}
+		filtered = append(filtered, items...)
 	}
 	return filtered, nil
 }
@@ -142,27 +129,24 @@ func (s *service) GetByHostWithProperties(hostID int) (map[int][]domain.Reservat
 		return nil, domain.ErrInvalidEntity
 	}
 
-	properties, err := s.propertyRepo.GetAll()
+	properties, err := s.propertyRepo.GetByOwnerID(hostID)
 	if err != nil {
 		return nil, err
 	}
 
 	owned := make(map[int]struct{})
 	for _, p := range properties {
-		if p.UserID == hostID {
-			owned[p.ID] = struct{}{}
-		}
-	}
-
-	all, err := s.repo.GetAll()
-	if err != nil {
-		return nil, err
+		owned[p.ID] = struct{}{}
 	}
 
 	grouped := make(map[int][]domain.Reservation)
-	for _, item := range all {
-		if _, ok := owned[item.PropertyID]; ok {
-			grouped[item.PropertyID] = append(grouped[item.PropertyID], item)
+	for propertyID := range owned {
+		items, err := s.repo.GetByPropertyID(propertyID)
+		if err != nil {
+			return nil, err
+		}
+		if len(items) > 0 {
+			grouped[propertyID] = append(grouped[propertyID], items...)
 		}
 	}
 
@@ -205,7 +189,7 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 		return domain.Reservation{}, err
 	}
 	if !property.Active {
-		return domain.Reservation{}, domain.ErrInvalidEntity
+		return domain.Reservation{}, fmt.Errorf("%w: imovel inativo", domain.ErrInvalidEntity)
 	}
 
 	guest, err := s.guestRepo.GetByID(existing.GuestID)
@@ -213,7 +197,7 @@ func (s *service) Update(id int, item ReservationUpdate) (domain.Reservation, er
 		return domain.Reservation{}, err
 	}
 	if !guest.Active {
-		return domain.Reservation{}, domain.ErrInvalidEntity
+		return domain.Reservation{}, fmt.Errorf("%w: hospede inativo", domain.ErrInvalidEntity)
 	}
 
 	totalValue, err := calculateTotalValue(property.DailyRate, existing.StartDate, existing.EndDate)

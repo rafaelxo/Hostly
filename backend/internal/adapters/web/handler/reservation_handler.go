@@ -2,11 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
-
 	"backend/internal/domain"
 	reservationuc "backend/internal/usecase/reservation"
 )
@@ -55,6 +56,45 @@ func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		items, err = h.svc.GetByPropertyID(propertyID)
+	} else if rawUserID := query.Get("idUsuario"); rawUserID != "" {
+		userID, parseErr := strconv.Atoi(rawUserID)
+		if parseErr != nil {
+			respondError(w, http.StatusBadRequest, parseErr)
+			return
+		}
+
+		scope := query.Get("papel")
+		switch scope {
+		case "hospede":
+			items, err = h.svc.GetByGuestID(userID)
+		case "anfitriao":
+			items, err = h.svc.GetByHostID(userID)
+		case "":
+			guestItems, guestErr := h.svc.GetByGuestID(userID)
+			if guestErr != nil {
+				respondDomainError(w, guestErr)
+				return
+			}
+			hostItems, hostErr := h.svc.GetByHostID(userID)
+			if hostErr != nil && !errors.Is(hostErr, domain.ErrInvalidEntity) {
+				respondDomainError(w, hostErr)
+				return
+			}
+			merged := make(map[int]domain.Reservation)
+			for _, item := range guestItems {
+				merged[item.ID] = item
+			}
+			for _, item := range hostItems {
+				merged[item.ID] = item
+			}
+			items = make([]domain.Reservation, 0, len(merged))
+			for _, item := range merged {
+				items = append(items, item)
+			}
+		default:
+			respondError(w, http.StatusBadRequest, fmt.Errorf("campo papel obrigatorio para filtro por usuario"))
+			return
+		}
 	} else {
 		items, err = h.svc.GetAll()
 	}
@@ -63,21 +103,22 @@ func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status := query.Get("status"); status != "" {
-		filtered := make([]domain.Reservation, 0, len(items))
-		for _, item := range items {
-			if string(item.Status) == status {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
+	filtered, err := filterReservations(
+		items,
+		query.Get("status"),
+		firstNonEmpty(query.Get("periodoDe"), query.Get("dataInicioDe")),
+		firstNonEmpty(query.Get("periodoAte"), query.Get("dataFimAte")),
+	)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err)
+		return
 	}
 
 	if sortBy := query.Get("ordenarPor"); sortBy != "" {
 		asc := query.Get("ordem") != "desc"
-		sort.Slice(items, func(i, j int) bool {
-			left := items[i]
-			right := items[j]
+		sort.Slice(filtered, func(i, j int) bool {
+			left := filtered[i]
+			right := filtered[j]
 
 			var less bool
 			switch sortBy {
@@ -100,7 +141,7 @@ func (h *ReservationHandler) List(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	respondJSON(w, http.StatusOK, items)
+	respondJSON(w, http.StatusOK, filtered)
 }
 
 func compareDateThenID(leftDate string, rightDate string, leftID int, rightID int) bool {
@@ -119,6 +160,60 @@ func compareDateThenID(leftDate string, rightDate string, leftID int, rightID in
 	}
 
 	return leftParsed.Before(rightParsed)
+}
+
+func filterReservations(items []domain.Reservation, statusRaw, periodFromRaw, periodToRaw string) ([]domain.Reservation, error) {
+	var periodFrom *time.Time
+	if periodFromRaw != "" {
+		parsed, err := time.Parse("2006-01-02", periodFromRaw)
+		if err != nil {
+			return nil, err
+		}
+		periodFrom = &parsed
+	}
+
+	var periodTo *time.Time
+	if periodToRaw != "" {
+		parsed, err := time.Parse("2006-01-02", periodToRaw)
+		if err != nil {
+			return nil, err
+		}
+		periodTo = &parsed
+	}
+
+	filtered := make([]domain.Reservation, 0, len(items))
+	for _, item := range items {
+		if statusRaw != "" && string(item.Status) != statusRaw {
+			continue
+		}
+
+		if periodFrom != nil || periodTo != nil {
+			startDate, startErr := time.Parse("2006-01-02", item.StartDate)
+			endDate, endErr := time.Parse("2006-01-02", item.EndDate)
+			if startErr != nil || endErr != nil {
+				continue
+			}
+			if periodFrom != nil && endDate.Before(*periodFrom) {
+				continue
+			}
+			if periodTo != nil && startDate.After(*periodTo) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, item)
+	}
+
+	return filtered, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (h *ReservationHandler) ListByGuest(w http.ResponseWriter, r *http.Request) {

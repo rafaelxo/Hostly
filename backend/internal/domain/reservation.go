@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -59,46 +60,52 @@ func (r *Reservation) SetDefaults() {
 }
 
 func (r Reservation) Validate() error {
-	if r.PropertyID <= 0 || r.TotalValue < 0 || r.GuestID <= 0 {
-		return ErrInvalidEntity
+	if r.PropertyID <= 0 {
+		return fmt.Errorf("%w: idImovel invalido", ErrInvalidEntity)
+	}
+	if r.GuestID <= 0 {
+		return fmt.Errorf("%w: idHospede invalido", ErrInvalidEntity)
+	}
+	if r.TotalValue < 0 {
+		return fmt.Errorf("%w: valorTotal invalido", ErrInvalidEntity)
 	}
 
 	start, err := time.Parse("2006-01-02", r.StartDate)
 	if err != nil {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: dataInicio invalida (use YYYY-MM-DD)", ErrInvalidEntity)
 	}
 	end, err := time.Parse("2006-01-02", r.EndDate)
 	if err != nil {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: dataFim invalida (use YYYY-MM-DD)", ErrInvalidEntity)
 	}
 	if !end.After(start) {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: dataFim deve ser posterior a dataInicio", ErrInvalidEntity)
 	}
 
 	if !isValidReservationStatus(r.Status) {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: status de reserva invalido", ErrInvalidEntity)
 	}
 
 	if !isValidPaymentStatus(r.PaymentStatus) {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: status de pagamento invalido", ErrInvalidEntity)
 	}
 
 	if r.PaymentMethod != "" && !isValidPaymentMethod(r.PaymentMethod) {
-		return ErrInvalidEntity
+		return fmt.Errorf("%w: forma de pagamento invalida", ErrInvalidEntity)
 	}
 
 	if r.Status == ReservationStatusConfirmed {
 		if !isValidPaymentMethod(r.PaymentMethod) {
-			return ErrInvalidEntity
+			return fmt.Errorf("%w: reserva confirmada exige forma de pagamento valida", ErrInvalidEntity)
 		}
 		if r.PaymentStatus != PaymentStatusApproved {
-			return ErrInvalidEntity
+			return fmt.Errorf("%w: reserva confirmada exige pagamento aprovado", ErrInvalidEntity)
 		}
 		if r.ConfirmedAt == "" {
-			return ErrInvalidEntity
+			return fmt.Errorf("%w: reserva confirmada exige data de confirmacao", ErrInvalidEntity)
 		}
 		if _, err := time.Parse(time.RFC3339, r.ConfirmedAt); err != nil {
-			return ErrInvalidEntity
+			return fmt.Errorf("%w: confirmadaEm invalida (use RFC3339)", ErrInvalidEntity)
 		}
 	}
 
