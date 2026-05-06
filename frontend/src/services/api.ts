@@ -95,6 +95,13 @@ export interface DashboardStats {
   receitaTotal: number;
 }
 
+export interface Favorito {
+  idUsuario: number;
+  idImovel: number;
+  dataCadastro: string;
+  ativo: boolean;
+}
+
 export type CreateUsuarioInput = {
   nome: string;
   email: string;
@@ -461,6 +468,35 @@ export const comodidadeService = {
   },
   async delete(id: number): Promise<void> {
     return request<void>(`/comodidades/${id}`, { method: "DELETE" });
+  },
+};
+
+export const favoritoService = {
+  async create(idUsuario: number, idImovel: number): Promise<Favorito> {
+    return request<Favorito>("/favoritos", {
+      method: "POST",
+      body: JSON.stringify({
+        idUsuario,
+        idImovel,
+        dataCadastro: new Date().toISOString().slice(0, 10),
+      }),
+    });
+  },
+  async get(idUsuario: number, idImovel: number): Promise<Favorito> {
+    return request<Favorito>(
+      `/favoritos/usuario/${idUsuario}/imovel/${idImovel}`,
+    );
+  },
+  async getByUsuario(idUsuario: number): Promise<Imovel[]> {
+    return request<Imovel[]>(`/favoritos/usuario/${idUsuario}`);
+  },
+  async getUsuariosByImovel(idImovel: number): Promise<Usuario[]> {
+    return request<Usuario[]>(`/favoritos/imovel/${idImovel}/usuarios`);
+  },
+  async delete(idUsuario: number, idImovel: number): Promise<void> {
+    return request<void>(`/favoritos/usuario/${idUsuario}/imovel/${idImovel}`, {
+      method: "DELETE",
+    });
   },
 };
 

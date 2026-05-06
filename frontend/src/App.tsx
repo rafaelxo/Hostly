@@ -5,6 +5,7 @@ import {
   IconCalendar,
   IconChevronLeft,
   IconChevronRight,
+  IconHeart,
   IconHome,
   IconLogout,
   IconMoney,
@@ -16,6 +17,7 @@ import { AnfitrioesPage } from "./pages/AnfitrioesPage";
 import { AuthPage } from "./pages/AuthPage";
 import { ComodidadesPage } from "./pages/ComodidadesPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { FavoritosPage } from "./pages/FavoritosPage";
 import { ImoveisPage } from "./pages/ImoveisPage";
 import { ImovelDetailPage } from "./pages/ImovelDetailPage";
 import { ReceitaPage } from "./pages/ReceitaPage";
@@ -32,6 +34,7 @@ import { useComodidades } from "./hooks/useData";
 
 type PageId =
   | "dashboard"
+  | "favoritos"
   | "minhasReservas"
   | "meusImoveis"
   | "reservasRecebidas"
@@ -51,6 +54,7 @@ function getNav(user: Usuario): NavItem[] {
   if (user.tipo === "ADMIN") {
     return [
       { id: "dashboard", label: "Dashboard", icon: <IconHome /> },
+      { id: "favoritos", label: "Favoritos", icon: <IconHeart /> },
       {
         id: "imoveisAtivos",
         label: "Imóveis Ativos",
@@ -76,6 +80,7 @@ function getNav(user: Usuario): NavItem[] {
   if (user.tipo === "ANFITRIAO") {
     return [
       { id: "dashboard", label: "Mapa de Imóveis", icon: <IconHome /> },
+      { id: "favoritos", label: "Favoritos", icon: <IconHeart /> },
       {
         id: "minhasReservas",
         label: "Minhas Reservas",
@@ -93,6 +98,7 @@ function getNav(user: Usuario): NavItem[] {
 
   return [
     { id: "dashboard", label: "Mapa de Imóveis", icon: <IconBuilding /> },
+    { id: "favoritos", label: "Favoritos", icon: <IconHeart /> },
     { id: "minhasReservas", label: "Minhas Reservas", icon: <IconCalendar /> },
   ];
 }
@@ -581,6 +587,7 @@ export default function App() {
           imovelId={viewingImovelId}
           onBack={() => setViewingImovelId(null)}
           canManage={user.tipo === "ANFITRIAO" || user.tipo === "ADMIN"}
+          currentUser={user}
         />
       );
     }
@@ -605,6 +612,13 @@ export default function App() {
             preselectedImovelId={preselectedReservaImovelId ?? undefined}
             canManage={user.tipo !== "ADMIN"}
             title="Minhas Reservas"
+          />
+        );
+      case "favoritos":
+        return (
+          <FavoritosPage
+            user={user}
+            onViewDetail={(id) => setViewingImovelId(id)}
           />
         );
       case "meusImoveis":

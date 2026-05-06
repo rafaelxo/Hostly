@@ -7,6 +7,7 @@ import (
 	aeduc "backend/internal/usecase/aed"
 	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
+	favoriteuc "backend/internal/usecase/favorite"
 	"backend/internal/usecase/property"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
@@ -35,11 +36,17 @@ func main() {
 		log.Fatalf("erro ao inicializar repositorio de comodidades: %v", err)
 	}
 
+	favoriteRepo, err := repository.NewFavoriteFileRepository("data/favoritos.db")
+	if err != nil {
+		log.Fatalf("erro ao inicializar repositorio de favoritos: %v", err)
+	}
+
 	propertyService := property.NewService(propertyRepo, userRepo)
 	userService := useruc.NewService(userRepo)
 	paymentGateway := payment.NewSimulatedGateway()
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
 	amenityService := amenityuc.NewService(amenityRepo)
+	favoriteService := favoriteuc.NewService(favoriteRepo, userRepo, propertyRepo)
 	aedService := aeduc.NewService(
 		propertyService,
 		reservationService,
@@ -73,6 +80,7 @@ func main() {
 		AuthService:        authService,
 		AmenityService:     amenityService,
 		AEDService:         aedService,
+		FavoriteService:    favoriteService,
 	})
 
 	addr := ":8080"
