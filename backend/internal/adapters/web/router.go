@@ -5,21 +5,21 @@ import (
 	aeduc "backend/internal/usecase/aed"
 	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
-	favoriteuc "backend/internal/usecase/favorite"
 	"backend/internal/usecase/property"
+	propertyamenityuc "backend/internal/usecase/propertyamenity"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
 	"net/http"
 )
 
 type Dependencies struct {
-	PropertyService    property.Service
-	UserService        useruc.Service
-	ReservationService reservationuc.Service
-	AuthService        authuc.Service
-	AmenityService     amenityuc.Service
-	AEDService         aeduc.Service
-	FavoriteService    favoriteuc.Service
+	PropertyService        property.Service
+	UserService            useruc.Service
+	ReservationService     reservationuc.Service
+	AuthService            authuc.Service
+	AmenityService         amenityuc.Service
+	PropertyAmenityService propertyamenityuc.Service
+	AEDService             aeduc.Service
 }
 
 func NewRouter(deps Dependencies) http.Handler {
@@ -29,8 +29,8 @@ func NewRouter(deps Dependencies) http.Handler {
 	dash := handler.NewDashboardHandler(deps.PropertyService, deps.UserService, deps.ReservationService)
 	auth := handler.NewAuthHandler(deps.AuthService)
 	amenities := handler.NewAmenityHandler(deps.AmenityService)
+	propertyAmenities := handler.NewPropertyAmenityHandler(deps.PropertyAmenityService)
 	aed := handler.NewAEDHandler(deps.AEDService)
-	favorites := handler.NewFavoriteHandler(deps.FavoriteService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -69,11 +69,11 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /aed/anfitriao/{id}", aed.RelacaoAnfitriao)
 
 	mux.HandleFunc("GET /dashboard/stats", dash.Stats)
-	mux.HandleFunc("POST /favoritos", favorites.Create)
-	mux.HandleFunc("GET /favoritos/usuario/{idUsuario}", favorites.ListPropertiesByUser)
-	mux.HandleFunc("GET /favoritos/imovel/{idImovel}/usuarios", favorites.ListUsersByProperty)
-	mux.HandleFunc("GET /favoritos/usuario/{idUsuario}/imovel/{idImovel}", favorites.Get)
-	mux.HandleFunc("DELETE /favoritos/usuario/{idUsuario}/imovel/{idImovel}", favorites.Delete)
+	mux.HandleFunc("POST /imoveis-comodidades", propertyAmenities.Create)
+	mux.HandleFunc("GET /imoveis-comodidades/imovel/{idImovel}", propertyAmenities.ListAmenitiesByProperty)
+	mux.HandleFunc("GET /imoveis-comodidades/imovel/{idImovel}/comodidade/{idComodidade}", propertyAmenities.Get)
+	mux.HandleFunc("DELETE /imoveis-comodidades/imovel/{idImovel}/comodidade/{idComodidade}", propertyAmenities.Delete)
+	mux.HandleFunc("GET /imoveis-comodidades/comodidade/{idComodidade}/imoveis", propertyAmenities.ListPropertiesByAmenity)
 	mux.HandleFunc("GET /comodidades", amenities.List)
 	mux.HandleFunc("POST /comodidades", amenities.Create)
 	mux.HandleFunc("GET /comodidades/{id}", amenities.GetByID)

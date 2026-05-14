@@ -55,7 +55,13 @@ func (s *service) Delete(id int) error {
 	if id <= 0 {
 		return domain.ErrInvalidEntity
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return err
+	}
+	if s.cleaner != nil {
+		return s.cleaner.DeleteByAmenityID(id)
+	}
+	return nil
 }
 
 func (s *service) GetAllActive() ([]domain.AmenityCatalogItem, error) {

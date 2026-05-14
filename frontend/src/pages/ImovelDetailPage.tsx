@@ -7,13 +7,10 @@ import {
   IconArrowLeft,
   IconCalendar,
   IconEdit,
-  IconHeart,
 } from "../components/icons";
 import {
-  favoritoService,
   imoveisService,
   type Imovel,
-  type Usuario,
 } from "../services/api";
 import { geocodePropertyAddress } from "../services/geocoding";
 
@@ -35,7 +32,6 @@ type Props = {
   onEdit?: (imovel: Imovel) => void;
   canManage?: boolean;
   onNewReserva?: (imovelId: number) => void;
-  currentUser?: Usuario;
 };
 
 export function ImovelDetailPage({
@@ -44,21 +40,19 @@ export function ImovelDetailPage({
   onEdit,
   canManage = false,
   onNewReserva,
-  currentUser,
 }: Props) {
   const [imovel, setImovel] = useState<Imovel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [coords, setCoords] = useState<[number, number] | null>(null);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [favoritedBy, setFavoritedBy] = useState<Usuario[]>([]);
   const geocoded = useRef(false);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
     geocoded.current = false;
     imoveisService
       .getById(imovelId)
@@ -84,63 +78,11 @@ export function ImovelDetailPage({
     void run();
   }, [imovel]);
 
-  useEffect(() => {
-    if (!imovel || !currentUser) return;
-    setIsFavorite(false);
-    favoritoService
-      .get(currentUser.idUsuario, imovel.idImovel)
-      .then(() => setIsFavorite(true))
-      .catch(() => setIsFavorite(false));
-  }, [currentUser, imovel]);
-
-  useEffect(() => {
-    const canSee =
-      currentUser?.tipo === "ADMIN" ||
-      (currentUser?.tipo === "ANFITRIAO" &&
-        imovel?.idUsuario === currentUser.idUsuario);
-    if (!imovel || !canSee) {
-      setFavoritedBy([]);
-      return;
-    }
-    favoritoService
-      .getUsuariosByImovel(imovel.idImovel)
-      .then(setFavoritedBy)
-      .catch(() => setFavoritedBy([]));
-  }, [currentUser, imovel]);
-
   if (loading) return <Spinner />;
   if (error || !imovel)
     return <ErrorMsg msg={error ?? "Imóvel não encontrado"} />;
 
-  const toggleFavorite = async () => {
-    if (!currentUser) return;
-    setFavoriteLoading(true);
-    try {
-      if (isFavorite) {
-        await favoritoService.delete(currentUser.idUsuario, imovel.idImovel);
-        setIsFavorite(false);
-        setFavoritedBy((items) =>
-          items.filter((item) => item.idUsuario !== currentUser.idUsuario),
-        );
-      } else {
-        await favoritoService.create(currentUser.idUsuario, imovel.idImovel);
-        setIsFavorite(true);
-        setFavoritedBy((items) =>
-          items.some((item) => item.idUsuario === currentUser.idUsuario)
-            ? items
-            : [...items, currentUser],
-        );
-      }
-    } finally {
-      setFavoriteLoading(false);
-    }
-  };
-
   const photos = imovel.fotos ?? [];
-  const canSeeFavoritedBy =
-    currentUser?.tipo === "ADMIN" ||
-    (currentUser?.tipo === "ANFITRIAO" &&
-      imovel.idUsuario === currentUser.idUsuario);
   const addr = imovel.endereco;
   const fullAddr = addr
     ? [
@@ -175,19 +117,6 @@ export function ImovelDetailPage({
             <IconEdit /> Editar imóvel
           </button>
         )}
-        {currentUser && currentUser.tipo !== "ADMIN" && (
-          <button
-            onClick={toggleFavorite}
-            disabled={favoriteLoading}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-              isFavorite
-                ? "text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200"
-                : "text-stone-600 bg-white hover:bg-stone-50 border-stone-200"
-            } disabled:opacity-60`}
-          >
-            <IconHeart /> {isFavorite ? "Favorito" : "Favoritar"}
-          </button>
-        )}
         {onNewReserva && (
           <button
             onClick={() => onNewReserva(imovel.idImovel)}
@@ -197,33 +126,6 @@ export function ImovelDetailPage({
           </button>
         )}
       </div>
-
-      {canSeeFavoritedBy && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
-                Usuários que favoritaram
-              </h2>
-              <p className="text-sm text-stone-600 mt-1">
-                {favoritedBy.length} usuário(s) salvaram este imóvel
-              </p>
-            </div>
-            {favoritedBy.length > 0 && (
-              <div className="flex flex-wrap gap-2 justify-end">
-                {favoritedBy.slice(0, 6).map((item) => (
-                  <span
-                    key={item.idUsuario}
-                    className="px-2.5 py-1 rounded-full bg-stone-50 border border-stone-200 text-xs font-medium text-stone-600"
-                  >
-                    {item.nome}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* */}
       <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">

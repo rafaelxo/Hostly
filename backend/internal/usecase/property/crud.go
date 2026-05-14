@@ -23,6 +23,8 @@ type PropertyPatch struct {
 
 func (s *service) Create(item domain.Property) (domain.Property, error) {
 	item.Normalize()
+	requestedAmenities := append([]domain.Amenity(nil), item.Amenities...)
+	item.Amenities = []domain.Amenity{}
 	if item.CreatedAt == "" {
 		item.CreatedAt = time.Now().Format("2006-01-02")
 	}
@@ -41,11 +43,24 @@ func (s *service) Create(item domain.Property) (domain.Property, error) {
 	if err != nil {
 		return domain.Property{}, err
 	}
+	if s.amenityLinks != nil {
+		if err := s.amenityLinks.ReplacePropertyAmenities(created.ID, requestedAmenities); err != nil {
+			_ = s.repo.Delete(created.ID)
+			return domain.Property{}, err
+		}
+		created, err = s.amenityLinks.HydratePropertyAmenities(created)
+		if err != nil {
+			return domain.Property{}, err
+		}
+	}
 
 	if owner.Type == domain.UserTypeGuest {
 		owner.Type = domain.UserTypeHost
 		if _, err := s.userRepo.Update(owner.ID, owner); err != nil {
 			_ = s.repo.Delete(created.ID)
+			if s.amenityLinks != nil {
+				_ = s.amenityLinks.DeleteByPropertyID(created.ID)
+			}
 			return domain.Property{}, err
 		}
 	}
@@ -57,7 +72,11 @@ func (s *service) GetByID(id int) (domain.Property, error) {
 	if id <= 0 {
 		return domain.Property{}, domain.ErrInvalidEntity
 	}
-	return s.repo.GetByID(id)
+	item, err := s.repo.GetByID(id)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	return s.hydrateProperty(item)
 }
 
 func (s *service) GetAll() ([]domain.Property, error) {
@@ -73,14 +92,18 @@ func (s *service) GetAll() ([]domain.Property, error) {
 		}
 	}
 
-	return active, nil
+	return s.hydrateProperties(active)
 }
 
 func (s *service) GetByOwnerID(ownerID int) ([]domain.Property, error) {
 	if ownerID <= 0 {
 		return nil, domain.ErrInvalidEntity
 	}
-	return s.repo.GetByOwnerID(ownerID)
+	items, err := s.repo.GetByOwnerID(ownerID)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateProperties(items)
 }
 
 type propertySearcher interface {
@@ -92,7 +115,7 @@ func (s *service) List(filter ListFilter) ([]domain.Property, error) {
 		return nil, domain.ErrInvalidEntity
 	}
 	if searcher, ok := s.repo.(propertySearcher); ok {
-		return searcher.Search(
+		items, err := searcher.Search(
 			filter.OwnerID,
 			filter.City,
 			filter.MinDailyRate,
@@ -100,6 +123,10 @@ func (s *service) List(filter ListFilter) ([]domain.Property, error) {
 			filter.Query,
 			filter.IncludeInactive,
 		)
+		if err != nil {
+			return nil, err
+		}
+		return s.hydrateProperties(items)
 	}
 
 	all, err := s.repo.GetAll()
@@ -133,7 +160,7 @@ func (s *service) List(filter ListFilter) ([]domain.Property, error) {
 		}
 		filtered = append(filtered, item)
 	}
-	return filtered, nil
+	return s.hydrateProperties(filtered)
 }
 
 func (s *service) Update(id int, item domain.Property) (domain.Property, error) {
@@ -142,6 +169,8 @@ func (s *service) Update(id int, item domain.Property) (domain.Property, error) 
 	}
 	item.Normalize()
 	item.ID = id
+	requestedAmenities := append([]domain.Amenity(nil), item.Amenities...)
+	item.Amenities = []domain.Amenity{}
 	owner, err := s.userRepo.GetByID(item.UserID)
 	if err != nil {
 		return domain.Property{}, err
@@ -152,7 +181,16 @@ func (s *service) Update(id int, item domain.Property) (domain.Property, error) 
 	if err := item.Validate(); err != nil {
 		return domain.Property{}, err
 	}
-	return s.repo.Update(id, item)
+	updated, err := s.repo.Update(id, item)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	if s.amenityLinks != nil {
+		if err := s.amenityLinks.ReplacePropertyAmenities(id, requestedAmenities); err != nil {
+			return domain.Property{}, err
+		}
+	}
+	return s.hydrateProperty(updated)
 }
 
 func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
@@ -172,8 +210,11 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	if p.Address != nil {
 		existing.Address = *p.Address
 	}
+	var requestedAmenities *[]domain.Amenity
 	if p.Amenities != nil {
-		existing.Amenities = *p.Amenities
+		copied := append([]domain.Amenity(nil), (*p.Amenities)...)
+		requestedAmenities = &copied
+		existing.Amenities = []domain.Amenity{}
 	}
 	if p.City != nil {
 		existing.City = *p.City
@@ -210,12 +251,41 @@ func (s *service) Patch(id int, p PropertyPatch) (domain.Property, error) {
 	if err := existing.Validate(); err != nil {
 		return domain.Property{}, err
 	}
-	return s.repo.Update(id, existing)
+	updated, err := s.repo.Update(id, existing)
+	if err != nil {
+		return domain.Property{}, err
+	}
+	if s.amenityLinks != nil && requestedAmenities != nil {
+		if err := s.amenityLinks.ReplacePropertyAmenities(id, *requestedAmenities); err != nil {
+			return domain.Property{}, err
+		}
+	}
+	return s.hydrateProperty(updated)
 }
 
 func (s *service) Delete(id int) error {
 	if id <= 0 {
 		return domain.ErrInvalidEntity
 	}
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return err
+	}
+	if s.amenityLinks != nil {
+		return s.amenityLinks.DeleteByPropertyID(id)
+	}
+	return nil
+}
+
+func (s *service) hydrateProperty(item domain.Property) (domain.Property, error) {
+	if s.amenityLinks == nil {
+		return item, nil
+	}
+	return s.amenityLinks.HydratePropertyAmenities(item)
+}
+
+func (s *service) hydrateProperties(items []domain.Property) ([]domain.Property, error) {
+	if s.amenityLinks == nil {
+		return items, nil
+	}
+	return s.amenityLinks.HydratePropertiesAmenities(items)
 }

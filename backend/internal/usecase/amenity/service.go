@@ -12,10 +12,15 @@ type Service interface {
 	SeedCommonAmenities() error
 }
 
-type service struct {
-	repo Repository
+type RelationCleaner interface {
+	DeleteByAmenityID(amenityID int) error
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+type service struct {
+	repo    Repository
+	cleaner RelationCleaner
+}
+
+func NewService(repo Repository, cleaner RelationCleaner) Service {
+	return &service{repo: repo, cleaner: cleaner}
 }

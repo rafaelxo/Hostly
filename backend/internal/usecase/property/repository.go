@@ -15,3 +15,10 @@ type UserReader interface {
 	GetByID(id int) (domain.User, error)
 	Update(id int, item domain.User) (domain.User, error)
 }
+
+type AmenityLinkManager interface {
+	ReplacePropertyAmenities(propertyID int, amenities []domain.Amenity) error
+	HydratePropertyAmenities(item domain.Property) (domain.Property, error)
+	HydratePropertiesAmenities(items []domain.Property) ([]domain.Property, error)
+	DeleteByPropertyID(propertyID int) error
+}

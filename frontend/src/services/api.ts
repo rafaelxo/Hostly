@@ -15,6 +15,7 @@ export interface Imovel {
     cep: string;
   };
   comodidades: {
+    idComodidade?: number;
     nome: string;
     descricao?: string;
   }[];
@@ -95,9 +96,9 @@ export interface DashboardStats {
   receitaTotal: number;
 }
 
-export interface Favorito {
-  idUsuario: number;
+export interface ImovelComodidade {
   idImovel: number;
+  idComodidade: number;
   dataCadastro: string;
   ativo: boolean;
 }
@@ -469,34 +470,30 @@ export const comodidadeService = {
   async delete(id: number): Promise<void> {
     return request<void>(`/comodidades/${id}`, { method: "DELETE" });
   },
-};
-
-export const favoritoService = {
-  async create(idUsuario: number, idImovel: number): Promise<Favorito> {
-    return request<Favorito>("/favoritos", {
+  async getImoveis(idComodidade: number): Promise<Imovel[]> {
+    return request<Imovel[]>(
+      `/imoveis-comodidades/comodidade/${idComodidade}/imoveis`,
+    );
+  },
+  async linkImovel(
+    idImovel: number,
+    idComodidade: number,
+  ): Promise<ImovelComodidade> {
+    return request<ImovelComodidade>("/imoveis-comodidades", {
       method: "POST",
       body: JSON.stringify({
-        idUsuario,
         idImovel,
+        idComodidade,
         dataCadastro: new Date().toISOString().slice(0, 10),
+        ativo: true,
       }),
     });
   },
-  async get(idUsuario: number, idImovel: number): Promise<Favorito> {
-    return request<Favorito>(
-      `/favoritos/usuario/${idUsuario}/imovel/${idImovel}`,
+  async unlinkImovel(idImovel: number, idComodidade: number): Promise<void> {
+    return request<void>(
+      `/imoveis-comodidades/imovel/${idImovel}/comodidade/${idComodidade}`,
+      { method: "DELETE" },
     );
-  },
-  async getByUsuario(idUsuario: number): Promise<Imovel[]> {
-    return request<Imovel[]>(`/favoritos/usuario/${idUsuario}`);
-  },
-  async getUsuariosByImovel(idImovel: number): Promise<Usuario[]> {
-    return request<Usuario[]>(`/favoritos/imovel/${idImovel}/usuarios`);
-  },
-  async delete(idUsuario: number, idImovel: number): Promise<void> {
-    return request<void>(`/favoritos/usuario/${idUsuario}/imovel/${idImovel}`, {
-      method: "DELETE",
-    });
   },
 };
 

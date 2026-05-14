@@ -18,6 +18,7 @@ type Address struct {
 }
 
 type Amenity struct {
+	ID          int    `json:"idComodidade,omitempty"`
 	Name        string `json:"nome"`
 	Description string `json:"descricao,omitempty"`
 }

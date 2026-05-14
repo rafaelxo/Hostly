@@ -7,8 +7,8 @@ import (
 	aeduc "backend/internal/usecase/aed"
 	amenityuc "backend/internal/usecase/amenity"
 	authuc "backend/internal/usecase/auth"
-	favoriteuc "backend/internal/usecase/favorite"
 	"backend/internal/usecase/property"
+	propertyamenityuc "backend/internal/usecase/propertyamenity"
 	reservationuc "backend/internal/usecase/reservation"
 	useruc "backend/internal/usecase/user"
 	"log"
@@ -36,17 +36,17 @@ func main() {
 		log.Fatalf("erro ao inicializar repositorio de comodidades: %v", err)
 	}
 
-	favoriteRepo, err := repository.NewFavoriteFileRepository("data/favoritos.db")
+	propertyAmenityRepo, err := repository.NewPropertyAmenityFileRepository("data/imoveis_comodidades.db")
 	if err != nil {
-		log.Fatalf("erro ao inicializar repositorio de favoritos: %v", err)
+		log.Fatalf("erro ao inicializar repositorio de imoveis_comodidades: %v", err)
 	}
 
-	propertyService := property.NewService(propertyRepo, userRepo)
+	propertyAmenityService := propertyamenityuc.NewService(propertyAmenityRepo, propertyRepo, amenityRepo)
+	propertyService := property.NewService(propertyRepo, userRepo, propertyAmenityService)
 	userService := useruc.NewService(userRepo)
 	paymentGateway := payment.NewSimulatedGateway()
 	reservationService := reservationuc.NewService(reservationRepo, propertyRepo, userRepo, paymentGateway)
-	amenityService := amenityuc.NewService(amenityRepo)
-	favoriteService := favoriteuc.NewService(favoriteRepo, userRepo, propertyRepo)
+	amenityService := amenityuc.NewService(amenityRepo, propertyAmenityService)
 	aedService := aeduc.NewService(
 		propertyService,
 		reservationService,
@@ -74,13 +74,13 @@ func main() {
 	}
 
 	router := web.NewRouter(web.Dependencies{
-		PropertyService:    propertyService,
-		UserService:        userService,
-		ReservationService: reservationService,
-		AuthService:        authService,
-		AmenityService:     amenityService,
-		AEDService:         aedService,
-		FavoriteService:    favoriteService,
+		PropertyService:        propertyService,
+		UserService:            userService,
+		ReservationService:     reservationService,
+		AuthService:            authService,
+		AmenityService:         amenityService,
+		PropertyAmenityService: propertyAmenityService,
+		AEDService:             aedService,
 	})
 
 	addr := ":8080"

@@ -23,10 +23,11 @@ type Service interface {
 }
 
 type service struct {
-	repo     Repository
-	userRepo UserReader
+	repo         Repository
+	userRepo     UserReader
+	amenityLinks AmenityLinkManager
 }
 
-func NewService(repo Repository, userRepo UserReader) Service {
-	return &service{repo: repo, userRepo: userRepo}
+func NewService(repo Repository, userRepo UserReader, amenityLinks AmenityLinkManager) Service {
+	return &service{repo: repo, userRepo: userRepo, amenityLinks: amenityLinks}
 }

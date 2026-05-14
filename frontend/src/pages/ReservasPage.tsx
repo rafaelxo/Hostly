@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ErrorMsg,
   Field,
@@ -91,7 +91,7 @@ export function ReservasPage({
   const [usuarioBusca, setUsuarioBusca] = useState("");
   const filteredReservas = reservas;
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -115,10 +115,6 @@ export function ReservasPage({
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void refetch();
   }, [
     activeOnly,
     guestId,
@@ -128,6 +124,10 @@ export function ReservasPage({
     statusFiltro,
     usuarioBusca,
   ]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
 
   useEffect(() => {
     if (!canManage || typeof preselectedImovelId !== "number") return;

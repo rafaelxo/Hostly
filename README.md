@@ -30,11 +30,12 @@ O **Hostly** é um sistema full-stack de gestão de imóveis para locação por 
 **Funcionalidades principais:**
 - CRUD completo de Imóveis, Usuários, Reservas e Comodidades
 - Relacionamentos 1:N entre entidades (Anfitrião → Imóveis → Reservas)
+- Relacionamento N:N entre Imóveis e Comodidades via tabela intermediária
 - Busca por ID em O(1) via Hash Extensível primário
-- Busca por relacionamento 1:N via Hash Extensível multi-valor
+- Busca por relacionamento 1:N e N:N via Hash Extensível multi-valor
 - Busca textual por tokens via índice invertido
-- Ordenação externa por atributo
-- Árvore B+ para busca por `valorDiaria`
+- Consulta ordenada via Árvore B+
+- Árvore B+ para consulta ordenada na tabela intermediária `ImovelComodidade`
 - Dashboard com mapa e geolocalização por CEP
 
 ---
@@ -75,6 +76,7 @@ Hostly/
 │   │   │   ├── property.go
 │   │   │   ├── reservation.go
 │   │   │   ├── amenity.go
+│   │   │   ├── property_amenity.go
 │   │   │   └── errors.go
 │   │   ├── adapters/
 │   │   │   ├── repository/                  # Persistência e índices
@@ -85,7 +87,8 @@ Hostly/
 │   │   │   │   ├── user_file_repo.go        # Repositório de Usuários
 │   │   │   │   ├── property_file_repo.go    # Repositório de Imóveis
 │   │   │   │   ├── reservation_file_repo.go # Repositório de Reservas
-│   │   │   │   └── amenity_file_repo.go     # Repositório de Comodidades
+│   │   │   │   ├── amenity_file_repo.go     # Repositório de Comodidades
+│   │   │   │   └── property_amenity_file_repo.go # Relação Imóvel-Comodidade
 │   │   │   └── web/                         # Handlers HTTP
 │   │   │       ├── router.go
 │   │   │       ├── auth_handler.go
@@ -93,6 +96,7 @@ Hostly/
 │   │   │       ├── user_handler.go
 │   │   │       ├── reservation_handler.go
 │   │   │       ├── amenity_handler.go
+│   │   │       ├── property_amenity_handler.go
 │   │   │       ├── dashboard_handler.go
 │   │   │       └── aed_handler.go           # Diagnóstico dos índices de hash
 │   │   └── usecase/                         # Serviços / casos de uso
@@ -140,7 +144,7 @@ Imóvel cadastrado por um anfitrião.
 | titulo      | string     | 4–120 caracteres             |
 | descricao   | string     |                              |
 | endereco    | Endereco   | Estrutura aninhada           |
-| comodidades | []Amenity  | Máximo 20 itens              |
+| comodidades | []Amenity  | Derivadas da relação N:N com Comodidade |
 | cidade      | string     |                              |
 | latitude    | float64    | Geocodificação por CEP       |
 | longitude   | float64    |                              |
@@ -188,6 +192,19 @@ Catálogo de comodidades disponíveis para imóveis.
 | descricao | string |                 |
 | icone     | string |                 |
 | ativo     | bool   |                 |
+
+### ImovelComodidade
+
+Tabela intermediária da Fase III, responsável pelo relacionamento N:N entre imóveis e comodidades.
+
+| Campo        | Tipo | Regras |
+|--------------|------|--------|
+| idImovel     | int  | Parte da chave composta; referencia Imóvel |
+| idComodidade | int  | Parte da chave composta; referencia Comodidade |
+| dataCadastro | string | Formato YYYY-MM-DD |
+| ativo        | bool | Exclusão lógica |
+
+**Chave primária composta:** `(idImovel, idComodidade)`.
 
 ---
 
@@ -310,7 +327,10 @@ data/
 ├── reservas.db.byguest.ridx     # Hash multi-valor: idHospede → []idReserva
 ├── reservas.db.byterm.ridx      # Hash invertido: token → []idReserva
 ├── comodidades.db           # Registros de comodidades
-└── comodidades.db.pidx      # Hash primário: idComodidade → offset
+├── comodidades.db.pidx      # Hash primário: idComodidade → offset
+├── imoveis_comodidades.db   # Relação N:N: idImovel + idComodidade
+├── imoveis_comodidades.db.byproperty.ridx # Hash multi-valor: idImovel → offsets
+└── imoveis_comodidades.db.byamenity.ridx  # Hash multi-valor: idComodidade → offsets
 ```
 
 ---
@@ -459,7 +479,6 @@ DELETE /imoveis/{id}                   # Excluir (lógico)
 | `ativo`       | bool    | Filtrar por status                                |
 | `ordenarPor`  | string  | `titulo` \| `cidade` \| `valorDiaria` \| `dataCadastro` |
 | `ordem`       | string  | `asc` \| `desc`                                   |
-| `valorDiaria` | float   | Busca exata (usa Árvore B+)                       |
 | `valorDiariaMin` | float | Faixa mínima de diária                         |
 | `valorDiariaMax` | float | Faixa máxima de diária                         |
 
@@ -507,6 +526,16 @@ GET    /comodidades/{id}  # Buscar por ID
 POST   /comodidades       # Criar
 PUT    /comodidades/{id}  # Atualizar
 DELETE /comodidades/{id}  # Excluir
+```
+
+### Relação Imóvel-Comodidade
+
+```
+POST   /imoveis-comodidades                         # Vincular imóvel e comodidade
+GET    /imoveis-comodidades/imovel/{idImovel}       # Listar comodidades do imóvel (B+ por idComodidade)
+GET    /imoveis-comodidades/comodidade/{idComodidade}/imoveis # Listar imóveis com a comodidade
+GET    /imoveis-comodidades/imovel/{idImovel}/comodidade/{idComodidade} # Buscar vínculo
+DELETE /imoveis-comodidades/imovel/{idImovel}/comodidade/{idComodidade} # Remover vínculo
 ```
 
 ### Dashboard
@@ -725,15 +754,27 @@ O arquivo `frontend/src/services/api.ts` centraliza todas as chamadas HTTP:
 | Conceito | Onde |
 |----------|------|
 | **Hash Extensível** | Índice primário (ID → offset) de todas as entidades |
-| **Hash Extensível Multi-Valor** | Relacionamentos 1:N e índice invertido de busca |
-| **Ordenação Externa** | Listagem de imóveis com `ordenarPor` |
-| **Árvore B+** | Busca por `valorDiaria` |
+| **Hash Extensível Multi-Valor** | Relacionamentos 1:N, N:N e índice invertido de busca |
+| **Consulta ordenada via Árvore B+** | Comodidades de um imóvel por `idComodidade` |
 | **Exclusão Lógica (Lápide)** | Deleção em todas as entidades |
 | **Serialização Manual** | Codec de campos com ID + tamanho + dados |
 | **Arquitetura Hexagonal** | Back-end (Domain / UseCase / Ports / Adapters) |
 | **Atomic Design** | Front-end (Atoms → Pages) |
 | **Geocodificação** | Busca de coordenadas por CEP com ranking e cache |
 | **Inversão de Dependência** | Repositórios injetados via interfaces Go |
+
+---
+
+## Formulário Técnico - Fase III
+
+1. **Relacionamento N:N escolhido:** Imóveis ↔ Comodidades, conectando `imoveis.db` e `comodidades.db` pela tabela intermediária `imoveis_comodidades.db`.
+2. **Estrutura de índice utilizada:** Hash Extensível multi-valor para acesso eficiente pelos dois lados (`idImovel` e `idComodidade`). A Árvore B+ é usada para recuperar, em ordem, as comodidades vinculadas a um imóvel por `idComodidade`.
+3. **Chave composta:** cada vínculo é identificado pelo par `(idImovel, idComodidade)`, gravado no cabeçalho do registro da tabela intermediária.
+4. **Busca eficiente:** `byproperty.ridx` localiza todos os vínculos de um imóvel; `byamenity.ridx` localiza todos os vínculos de uma comodidade; a B+ usa uma chave ordenável `idImovel:idComodidade`.
+5. **Integridade referencial:** o serviço valida se imóvel e comodidade existem e estão ativos antes de criar vínculos. Ao remover imóvel ou comodidade, seus vínculos são removidos logicamente.
+6. **Persistência:** `imoveis_comodidades.db` segue o mesmo padrão de cabeçalho global e registros com lápide, chave composta e payload com `dataCadastro`/`ativo`.
+7. **Integração com CRUDs:** criar/editar imóvel sincroniza os vínculos de comodidades; listar/buscar imóvel hidrata as comodidades a partir da tabela intermediária; excluir imóvel ou comodidade limpa os vínculos.
+8. **Organização dos módulos:** domínio em `domain/property_amenity.go`, caso de uso em `usecase/propertyamenity`, repositório binário em `adapters/repository/property_amenity_file_repo.go` e handler HTTP em `adapters/web/handler/property_amenity_handler.go`.
 
 ---
 

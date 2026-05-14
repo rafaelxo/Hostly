@@ -24,6 +24,7 @@ type createPropertyRequest struct {
 		ZipCode      string `json:"cep"`
 	} `json:"endereco"`
 	Amenities []struct {
+		ID          int    `json:"idComodidade"`
 		Name        string `json:"nome"`
 		Description string `json:"descricao"`
 	} `json:"comodidades"`
@@ -49,6 +50,7 @@ type propertyUpdatePayload struct {
 		ZipCode      string `json:"cep"`
 	} `json:"endereco"`
 	Amenities *[]struct {
+		ID          int    `json:"idComodidade"`
 		Name        string `json:"nome"`
 		Description string `json:"descricao"`
 	} `json:"comodidades"`
@@ -287,6 +289,7 @@ func toDomainAddressPtr(value *struct {
 }
 
 func toDomainAmenities(values []struct {
+	ID          int    `json:"idComodidade"`
 	Name        string `json:"nome"`
 	Description string `json:"descricao"`
 }) []domain.Amenity {
@@ -295,12 +298,13 @@ func toDomainAmenities(values []struct {
 	}
 	items := make([]domain.Amenity, 0, len(values))
 	for _, item := range values {
-		items = append(items, domain.Amenity{Name: item.Name, Description: item.Description})
+		items = append(items, domain.Amenity{ID: item.ID, Name: item.Name, Description: item.Description})
 	}
 	return items
 }
 
 func toDomainAmenitiesPtr(values *[]struct {
+	ID          int    `json:"idComodidade"`
 	Name        string `json:"nome"`
 	Description string `json:"descricao"`
 }) *[]domain.Amenity {

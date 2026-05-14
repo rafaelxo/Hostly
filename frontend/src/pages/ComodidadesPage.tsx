@@ -12,6 +12,7 @@ import { IconEdit, IconPlus, IconSparkles, IconTrash } from "../components/icons
 import {
   comodidadeService,
   type ComodidadeCatalogo,
+  type Imovel,
 } from "../services/api";
 
 type View = "list" | "new" | "edit";
@@ -46,6 +47,9 @@ export function ComodidadesPage({
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [imoveisPorComodidade, setImoveisPorComodidade] = useState<
+    Record<number, Imovel[]>
+  >({});
 
   const refetch = async () => {
     setLoading(true);
@@ -53,6 +57,13 @@ export function ComodidadesPage({
     try {
       const data = await comodidadeService.getAll();
       setItems(data);
+      const relations = await Promise.all(
+        data.map(async (item) => [
+          item.idComodidade,
+          await comodidadeService.getImoveis(item.idComodidade),
+        ] as const),
+      );
+      setImoveisPorComodidade(Object.fromEntries(relations));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar comodidades");
     } finally {
@@ -238,6 +249,9 @@ export function ComodidadesPage({
               </p>
               <p className="text-xs text-stone-500 mt-2">
                 Ícone: {item.icone || "—"}
+              </p>
+              <p className="text-xs text-stone-500 mt-1">
+                {(imoveisPorComodidade[item.idComodidade] ?? []).length} imóvel(is) vinculado(s)
               </p>
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-stone-50">
                 <button
